@@ -204,7 +204,7 @@ app.get('/games', async (req, res) => {
     const igdbQuery = igdbQueryArr.join('\n');
 
     // (Opcional) Debug
-    // console.log('\n--- IGDB QUERY ---\n' + igdbQuery + '\n------------------\n');
+    console.log('\n--- IGDB QUERY ---\n' + igdbQuery + '\n------------------\n');
 
     const igdbResponse = await axios.post(
       'https://api.igdb.com/v4/games',
