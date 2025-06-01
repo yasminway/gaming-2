@@ -19,15 +19,10 @@ const platforms = {
 const themes = {
   "survival": 19, "mystery": 43, "psychological": 31, "psicológico": 31, "indie": 32
 };
-
-// KEYWORDS — substitua este bloco com o seu arquivo grande
 const keywords = {
-  "female protagonist": 962,
-  "survival horror": 1836,
-  "camera": 1834,
-  "ghosts": 16,
-  "death": 558,
-  "multiple endings": 1313
+  "female protagonist": 962, "survival horror": 1836, "camera": 1834, "ghosts": 16,
+  "death": 558, "multiple endings": 1313
+  // ...adicione o resto aqui!
 };
 
 // Funções auxiliares
@@ -40,6 +35,7 @@ function extractYear(text) {
   return m ? parseInt(m[0]) : undefined;
 }
 function extractTitle(text) {
+  // Só retorna o título se estiver entre aspas, tipo "Silent Hill"
   const m = text?.match(/["“”](.*?)["“”]/) || text?.match(/s[ée]rie ([\w\s:]+)/i);
   return m ? m[1].trim() : null;
 }
@@ -53,12 +49,11 @@ function parseGameQuery(question) {
   const themeIds = extract(question, themes);
   const keywordIds = extract(question, keywords);
   const year = extractYear(question);
-  const title = extractTitle(question);
-  const search = [title, hasFemaleProtagonist(question) ? "female protagonist" : ""]
-    .filter(Boolean).join(" ").trim() || question.trim();
+  const title = extractTitle(question); // Só usa search se tiver isso
 
+  // search só se for título explícito!
   return {
-    search,
+    title,
     genreId: genreIds[0],
     platformId: platformIds[0],
     themeId: themeIds[0],
@@ -89,21 +84,22 @@ async function getAccessToken() {
 app.get('/games/ask', async (req, res) => {
   try {
     const pergunta = req.query.question || "";
-    const { search, genreId, platformId, themeId, keywordIds, year, limit } = parseGameQuery(pergunta);
+    const { title, genreId, platformId, themeId, keywordIds, year, limit } = parseGameQuery(pergunta);
 
     const filters = [];
-if (genreId) filters.push(`genres = (${genreId})`);
-if (platformId) filters.push(`platforms = (${platformId})`);
-if (themeId) filters.push(`themes = (${themeId})`);
-if (keywordIds.length) filters.push(`keywords = (${keywordIds.join(",")})`);
-if (year) filters.push(`first_release_date >= ${year}-01-01 and first_release_date <= ${year}-12-31`);
+    if (genreId) filters.push(`genres = (${genreId})`);
+    if (platformId) filters.push(`platforms = (${platformId})`);
+    if (themeId) filters.push(`themes = (${themeId})`);
+    if (keywordIds && keywordIds.length) filters.push(`keywords = (${keywordIds.join(",")})`);
+    if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
 
-    const query = [
-      search ? `search "${search}";` : "",
-      "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;",
-      filters.length ? `where ${filters.join(" and ")};` : "",
-      `limit ${limit};`
-    ].filter(Boolean).join('\n');
+    // Monta a query só com search se tem título explícito!
+    let igdbQueryArr = [];
+    if (title) igdbQueryArr.push(`search "${title}";`);
+    igdbQueryArr.push("fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;");
+    if (filters.length) igdbQueryArr.push(`where ${filters.join(" and ")};`);
+    igdbQueryArr.push(`limit ${limit};`);
+    const query = igdbQueryArr.join('\n');
 
     console.log("\n--- IGDB QUERY ---\n" + query + "\n------------------");
 
