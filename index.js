@@ -38,6 +38,11 @@ function extractProtagonist(text) {
   const re = /protagonista feminina|female protagonist|mulher|girl|garota|woman/i;
   return re.test(text);
 }
+function getYearUnixRange(year) {
+  const start = Math.floor(new Date(`${year}-01-01`).getTime() / 1000);
+  const end = Math.floor(new Date(`${year}-12-31`).getTime() / 1000);
+  return { start, end };
+}
 
 function parseGameQuery(question) {
   let searchParts = [];
@@ -74,7 +79,7 @@ async function getAccessToken() {
   return accessToken;
 }
 
-// Rota inteligente
+// Rota inteligente para perguntas livres
 app.get('/games/ask', async (req, res) => {
   try {
     const pergunta = req.query.question || "";
@@ -83,7 +88,10 @@ app.get('/games/ask', async (req, res) => {
     if (genreId) filters.push(`genres = (${genreId})`);
     if (themeId) filters.push(`themes = (${themeId})`);
     if (platformId) filters.push(`platforms = (${platformId})`);
-    if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
+    if (year) {
+      const { start, end } = getYearUnixRange(year);
+      filters.push(`first_release_date >= ${start} & first_release_date <= ${end}`);
+    }
 
     const igdbQuery = `
       ${search ? `search "${search}";` : ""}
@@ -91,6 +99,9 @@ app.get('/games/ask', async (req, res) => {
       ${filters.length > 0 ? `where ${filters.join(' & ')};` : ""}
       limit ${limit};
     `;
+
+    // Para debug, descomente a linha abaixo:
+    // console.log('IGDB Query:', igdbQuery);
 
     const token = await getAccessToken();
     const igdbResponse = await axios.post(
@@ -111,7 +122,7 @@ app.get('/games/ask', async (req, res) => {
   }
 });
 
-// Rota manual
+// Rota manual pra queries estruturadas
 app.get('/games', async (req, res) => {
   try {
     const token = await getAccessToken();
@@ -126,10 +137,13 @@ app.get('/games', async (req, res) => {
     if (genreId) filters.push(`genres = (${genreId})`);
     if (themeId) filters.push(`themes = (${themeId})`);
     if (platformId) filters.push(`platforms = (${platformId})`);
-    if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
+    if (year) {
+      const { start, end } = getYearUnixRange(year);
+      filters.push(`first_release_date >= ${start} & first_release_date <= ${end}`);
+    }
 
     const igdbQuery = `
-      search "${query}";
+      ${query ? `search "${query}";` : ""}
       fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name;
       ${filters.length > 0 ? `where ${filters.join(' & ')};` : ""}
       limit ${limit};
