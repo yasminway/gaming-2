@@ -1,0 +1,90 @@
+openapi: 3.1.0
+info:
+  title: IGDB Proxy API
+  version: "1.0.0"
+  description: API para buscar jogos da IGDB com filtros por nome, gênero, tema, ano e plataforma.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: https://gaming-2-production.up.railway.app
+paths:
+  /games:
+    get:
+      tags:
+        - games
+      summary: Buscar jogos com múltiplos filtros
+      operationId: getGames
+      parameters:
+        - name: search
+          in: query
+          description: Termo de busca (nome do jogo, franquia ou palavras-chave)
+          required: false
+          schema:
+            type: string
+        - name: genreId
+          in: query
+          description: ID do gênero (ex: 2 = Horror, 12 = RPG)
+          required: false
+          schema:
+            type: integer
+        - name: themeId
+          in: query
+          description: ID do tema (ex: 20 = Low poly, 31 = Drama)
+          required: false
+          schema:
+            type: integer
+        - name: platformId
+          in: query
+          description: ID da plataforma (ex: 6 = PC, 48 = PS4)
+          required: false
+          schema:
+            type: integer
+        - name: year
+          in: query
+          description: Ano de lançamento (ex: 2025)
+          required: false
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          description: Número máximo de resultados
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lista de jogos encontrados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fallback:
+                    type: boolean
+                  message:
+                    type: string
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        summary:
+                          type: string
+                        genres:
+                          type: array
+                          items:
+                            type: string
+                        platforms:
+                          type: array
+                          items:
+                            type: string
+                        rating:
+                          type: number
+                        cover:
+                          type: object
+                          properties:
+                            url:
+                              type: string
