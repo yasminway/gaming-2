@@ -363,11 +363,9 @@ app.get("/games/ask", async (req, res) => {
 
     // Filtrar ano inteiro (0h do 1º de janeiro até 0h do 1º de janeiro do ano seguinte)
     if (year) {
-      const startTimestamp = Math.floor(new Date(`${year}-01-01`).getTime() / 1000);
-      const endTimestamp = Math.floor(new Date(`${year + 1}-01-01`).getTime() / 1000);
-      filters.push(
-        `first_release_date >= ${startTimestamp} & first_release_date < ${endTimestamp}`
-      );
+  const start = Math.floor(new Date(`${year}-01-01`).getTime() / 1000);
+  const end = Math.floor(new Date(`${year}-12-31`).getTime() / 1000);
+  filters.push(`first_release_date >= ${start} & first_release_date <= ${end}`);
     }
 
     // Montagem segura da query IGDB
