@@ -1,3 +1,4 @@
+// index.js
 import express from 'express';
 import axios from 'axios';
 import dotenv from 'dotenv';
@@ -6,32 +7,52 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
+// ----------------------------
 // GENRES, PLATFORMS, THEMES
+// ----------------------------
 const genres = {
-  "terror": 2, "horror": 2,
-  "rpg": 12, "jrpg": 12,
-  "aventura": 31, "adventure": 31,
-  "ação": 5, "action": 5,
-  "simulação": 13, "simulation": 13,
-  "plataforma": 8, "platformer": 8
+  "terror": 2,
+  "horror": 2,
+  "rpg": 12,
+  "jrpg": 12,
+  "aventura": 31,
+  "adventure": 31,
+  "ação": 5,
+  "action": 5,
+  "simulação": 13,
+  "simulation": 13,
+  "plataforma": 8,
+  "platformer": 8
 };
 const platforms = {
-  "ps2": 7, "playstation 2": 7,
-  "ps3": 9, "playstation 3": 9,
-  "ps4": 48, "playstation 4": 48,
-  "ps5": 167, "playstation 5": 167,
-  "switch": 130, "nintendo switch": 130,
+  "ps2": 7,
+  "playstation 2": 7,
+  "ps3": 9,
+  "playstation 3": 9,
+  "ps4": 48,
+  "playstation 4": 48,
+  "ps5": 167,
+  "playstation 5": 167,
+  "switch": 130,
+  "nintendo switch": 130,
   "pc": 6,
-  "xbox": 11, "xbox one": 49, "xbox series": 169
+  "xbox": 11,
+  "xbox one": 49,
+  "xbox series": 169
 };
 const themes = {
-  "low poly": 20, "experimental": 20,
-  "survival": 19, "mystery": 43,
-  "psicológico": 31, "psychological": 31,
+  "low poly": 20,
+  "experimental": 20,
+  "survival": 19,
+  "mystery": 43,
+  "psicológico": 31,
+  "psychological": 31,
   "indie": 32
 };
 
-// ---------- Cole o bloco de keywords AQUI ----------
+// ----------------------------
+// keywords.json (cole aqui)
+// ----------------------------
 const keywords = {
   // === Horror, RPG, JRPG keywords (suas + sugestões) ===
   "ghosts": 16,
@@ -191,13 +212,17 @@ const keywords = {
   "dark past": 1930
   // pode adicionar mais conforme for achando!
 };
-// --------------------------------------------------
+// ----------------------------
 
-// Funções auxiliares
+// ----------------------------
+// Funções auxiliares de extração
+// ----------------------------
 function extractGameTitle(question) {
   if (!question) return null;
+  // título entre aspas (“” ou "")
   let m = question.match(/["“”](.*?)["“”]/);
   if (m) return m[1];
+  // “série NomeDaSérie”
   m = question.match(/s[ée]rie ([\w\s:]+)/i);
   return m ? m[1].trim() : null;
 }
@@ -230,33 +255,25 @@ function extractKeywords(text) {
     .filter(k => text.toLowerCase().includes(k))
     .map(k => keywords[k]);
 }
-function extractProtagonist(text) {
-  if (!text) return false;
-  const re = /protagonista feminina|female protagonist|mulher|girl|garota|woman/i;
-  return re.test(text);
-}
 
-// Converte ano para timestamps de início e fim do ano
+// Converte “2025” em range de timestamps Unix (segundos)
 function yearToTimestampRange(year) {
-  const start = new Date(year, 0, 1).getTime() / 1000;
-  const end = new Date(year + 1, 0, 1).getTime() / 1000;
-  return { start: Math.floor(start), end: Math.floor(end) };
+  const start = Math.floor(new Date(year, 0, 1).getTime() / 1000);
+  const end = Math.floor(new Date(year + 1, 0, 1).getTime() / 1000);
+  return { start, end };
 }
 
+// Monta o objeto com filtros extraídos da pergunta
 function parseGameQuery(question) {
-  let searchParts = [];
   const title = extractGameTitle(question);
-  if (title) searchParts.push(title);
-  if (extractProtagonist(question)) searchParts.push("female protagonist");
-
   const genreIds = extractGenres(question);
   const platformIds = extractPlatforms(question);
   const themeIds = extractThemes(question);
   const keywordIds = extractKeywords(question);
   const year = extractYear(question);
 
-  let search = searchParts.join(" ").trim();
-  if (!search && question) search = question.trim();
+  // Somente deixamos `search` se realmente houver título explícito
+  const search = title ? title.trim() : "";
 
   return {
     search,
@@ -269,21 +286,23 @@ function parseGameQuery(question) {
   };
 }
 
+// ----------------------------
 // Controle de token Twitch/IGDB
-let accessToken = '';
+// ----------------------------
+let accessToken = "";
 let tokenExpiration = 0;
 async function getAccessToken() {
   if (Date.now() < tokenExpiration && accessToken) {
     return accessToken;
   }
   const response = await axios.post(
-    'https://id.twitch.tv/oauth2/token',
+    "https://id.twitch.tv/oauth2/token",
     null,
     {
       params: {
         client_id: process.env.CLIENT_ID,
         client_secret: process.env.CLIENT_SECRET,
-        grant_type: 'client_credentials'
+        grant_type: "client_credentials"
       }
     }
   );
@@ -292,8 +311,10 @@ async function getAccessToken() {
   return accessToken;
 }
 
+// ----------------------------
 // Endpoint inteligente: /games/ask?question=...
-app.get('/games/ask', async (req, res) => {
+// ----------------------------
+app.get("/games/ask", async (req, res) => {
   try {
     const question = req.query.question || "";
     const {
@@ -306,14 +327,15 @@ app.get('/games/ask', async (req, res) => {
       limit
     } = parseGameQuery(question);
 
-    let filters = [];
-    if (typeof genreId !== 'undefined') {
+    // Monta lista de cláusulas “where”
+    const filters = [];
+    if (typeof genreId !== "undefined") {
       filters.push(`genres = (${genreId})`);
     }
-    if (typeof themeId !== 'undefined') {
+    if (typeof themeId !== "undefined") {
       filters.push(`themes = (${themeId})`);
     }
-    if (typeof platformId !== 'undefined') {
+    if (typeof platformId !== "undefined") {
       filters.push(`platforms = (${platformId})`);
     }
     if (Array.isArray(keywordIds) && keywordIds.length > 0) {
@@ -324,12 +346,13 @@ app.get('/games/ask', async (req, res) => {
       filters.push(`first_release_date >= ${start} & first_release_date < ${end}`);
     }
 
-    // Montagem da query IGDB
-    const igdbQueryArr = [];
-    if (search && search.trim().length > 0) {
-      igdbQueryArr.push(`search "${search}";`);
+    // Monta o corpo da consulta IGDB
+    const igdbParts = [];
+    if (search && search.length > 0) {
+      // só colocamos “search” se vier um título explícito
+      igdbParts.push(`search "${search}";`);
     }
-    igdbQueryArr.push(`
+    igdbParts.push(`
       fields
         name,
         summary,
@@ -342,23 +365,23 @@ app.get('/games/ask', async (req, res) => {
         keywords.name;
     `.trim());
     if (filters.length > 0) {
-      igdbQueryArr.push(`where ${filters.join(' & ')};`);
+      igdbParts.push(`where ${filters.join(" & ")};`);
     }
-    igdbQueryArr.push(`limit ${limit};`);
-    const igdbQuery = igdbQueryArr.join('\n');
+    igdbParts.push(`limit ${limit};`);
+    const igdbQuery = igdbParts.join("\n");
 
-    // (Opcional) Descomente para debugar a query gerada
-    // console.log('\n--- IGDB QUERY ---\n', igdbQuery, '\n------------------\n');
+    // (Opcional) Debug da query no console
+    // console.log("\n--- IGDB QUERY ---\n", igdbQuery, "\n------------------\n");
 
     const token = await getAccessToken();
     const igdbResponse = await axios.post(
-      'https://api.igdb.com/v4/games',
+      "https://api.igdb.com/v4/games",
       igdbQuery,
       {
         headers: {
-          'Client-ID': process.env.CLIENT_ID,
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'text/plain'
+          "Client-ID": process.env.CLIENT_ID,
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "text/plain"
         }
       }
     );
@@ -372,33 +395,35 @@ app.get('/games/ask', async (req, res) => {
     res.json({
       fallback: true,
       results: [],
-      message: 'Erro na conexão com a IGDB.'
+      message: "Erro na conexão com a IGDB."
     });
   }
 });
 
-// Endpoint manual “/games?search=&genreId=&themeId=&platformId=&keywordIds=&year=&limit=”
-app.get('/games', async (req, res) => {
+// ----------------------------
+// Endpoint manual “/games?search=&genreId=&themeId=&platformId=&keywordIds=&year=&limit=...”
+// ----------------------------
+app.get("/games", async (req, res) => {
   try {
     const token = await getAccessToken();
-    const query = req.query.search || '';
+    const query = req.query.search || "";
     const genreId = req.query.genreId;
     const themeId = req.query.themeId;
     const platformId = req.query.platformId;
     const keywordIds = req.query.keywordIds
-      ? req.query.keywordIds.split(',').map(x => x.trim())
+      ? req.query.keywordIds.split(",").map((x) => x.trim())
       : [];
     const year = req.query.year ? parseInt(req.query.year, 10) : undefined;
     const limit = req.query.limit || 30;
 
-    let filters = [];
-    if (typeof genreId !== 'undefined') {
+    const filters = [];
+    if (typeof genreId !== "undefined") {
       filters.push(`genres = (${genreId})`);
     }
-    if (typeof themeId !== 'undefined') {
+    if (typeof themeId !== "undefined") {
       filters.push(`themes = (${themeId})`);
     }
-    if (typeof platformId !== 'undefined') {
+    if (typeof platformId !== "undefined") {
       filters.push(`platforms = (${platformId})`);
     }
     if (Array.isArray(keywordIds) && keywordIds.length > 0) {
@@ -409,11 +434,11 @@ app.get('/games', async (req, res) => {
       filters.push(`first_release_date >= ${start} & first_release_date < ${end}`);
     }
 
-    const igdbQueryArr = [];
-    if (query && query.trim().length > 0) {
-      igdbQueryArr.push(`search "${query}";`);
+    const igdbParts = [];
+    if (query && query.length > 0) {
+      igdbParts.push(`search "${query}";`);
     }
-    igdbQueryArr.push(`
+    igdbParts.push(`
       fields
         name,
         summary,
@@ -426,25 +451,26 @@ app.get('/games', async (req, res) => {
         keywords.name;
     `.trim());
     if (filters.length > 0) {
-      igdbQueryArr.push(`where ${filters.join(' & ')};`);
+      igdbParts.push(`where ${filters.join(" & ")};`);
     }
-    igdbQueryArr.push(`limit ${limit};`);
-    const igdbQuery = igdbQueryArr.join('\n');
+    igdbParts.push(`limit ${limit};`);
+    const igdbQuery = igdbParts.join("\n");
 
-    // (Opcional) Debug da query gerada
-    // console.log('\n--- IGDB QUERY (manual) ---\n', igdbQuery, '\n---------------------------\n');
+    // (Opcional) Debug
+    // console.log("\n--- IGDB QUERY (manual) ---\n", igdbQuery, "\n---------------------------\n");
 
     const igdbResponse = await axios.post(
-      'https://api.igdb.com/v4/games',
+      "https://api.igdb.com/v4/games",
       igdbQuery,
       {
         headers: {
-          'Client-ID': process.env.CLIENT_ID,
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'text/plain'
+          "Client-ID": process.env.CLIENT_ID,
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "text/plain"
         }
       }
     );
+
     res.json({
       fallback: false,
       results: igdbResponse.data
@@ -454,7 +480,7 @@ app.get('/games', async (req, res) => {
     res.json({
       fallback: true,
       results: [],
-      message: 'Erro na conexão com a IGDB.'
+      message: "Erro na conexão com a IGDB."
     });
   }
 });
