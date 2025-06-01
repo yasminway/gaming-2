@@ -6,7 +6,6 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// GENRES, PLATFORMS, THEMES: OK
 const genres = {
   "terror": 2, "horror": 2, "rpg": 12, "jrpg": 12, "aventura": 31, "adventure": 31,
   "ação": 5, "action": 5, "simulação": 13, "simulation": 13, "plataforma": 8, "platformer": 8
@@ -19,8 +18,7 @@ const themes = {
   "low poly": 20, "experimental": 20, "survival": 19, "mystery": 43, "psicológico": 31, "psychological": 31, "indie": 32
 };
 
-// --------- COLE O BLOCO GIGANTE DE KEYWORDS AQUI ---------
-// const keywords = { ... };
+// Cole o bloco gigante de keywords aqui
 const keywords = {
   "ghosts": 16, "exploration": 552, "bloody": 1273, "disease": 613, "detective": 1575, "murder": 278, "death": 558, "female protagonist": 962, "action-adventure": 269,
   "religion": 146, "parallel worlds": 435, "backtracking": 342, "multiple endings": 1313, "dialogue trees": 2726, "revenge": 1058, "camera": 1834, "survival horror": 1836,
@@ -57,7 +55,6 @@ const keywords = {
   "steelbook": 3416, "bounty hunting": 3098, "corruption": 2131, "heroic sacrifice": 2207, "war veterans": 2239, "dark past": 1930, "greatest hits": 1969, "international version": 3388
 };
 
-// Funções auxiliares (sempre retornam array ou valor definido)
 function extractGameTitle(question) {
   let m = question?.match(/["“”](.*?)["“”]/);
   if (m) return m[1];
@@ -98,7 +95,6 @@ function parseGameQuery(question) {
   if (title) searchParts.push(title);
   if (extractProtagonist(question)) searchParts.push("female protagonist");
 
-  // Assegure que SEMPRE são arrays
   const genreIds = Array.isArray(extractGenres(question)) ? extractGenres(question) : [];
   const platformIds = Array.isArray(extractPlatforms(question)) ? extractPlatforms(question) : [];
   const themeIds = Array.isArray(extractThemes(question)) ? extractThemes(question) : [];
@@ -106,7 +102,7 @@ function parseGameQuery(question) {
   const year = extractYear(question);
 
   let search = searchParts.join(" ").trim();
-  if (!search) search = question ? question.trim() : "";
+  if (!search && question) search = question.trim();
 
   return {
     search,
@@ -148,8 +144,9 @@ app.get('/games/ask', async (req, res) => {
     if (Array.isArray(keywordIds) && keywordIds.length) filters.push(`keywords = (${keywordIds.join(",")})`);
     if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
 
+    // >> Aqui está a principal proteção para erro 400 <<
     const igdbQuery = `
-      ${search ? `search "${search}";` : ""}
+      ${search && search.length > 0 ? `search "${search}";` : ""}
       fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;
       ${filters.length > 0 ? `where ${filters.join(' & ')};` : ""}
       limit ${limit};
@@ -193,8 +190,9 @@ app.get('/games', async (req, res) => {
     if (Array.isArray(keywordIds) && keywordIds.length) filters.push(`keywords = (${keywordIds.join(",")})`);
     if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
 
+    // Proteção para search/query vazio
     const igdbQuery = `
-      search "${query}";
+      ${query && query.length > 0 ? `search "${query}";` : ""}
       fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;
       ${filters.length > 0 ? `where ${filters.join(' & ')};` : ""}
       limit ${limit};
