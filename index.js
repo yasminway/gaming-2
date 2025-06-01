@@ -147,15 +147,15 @@ app.get('/games/ask', async (req, res) => {
     if (Array.isArray(keywordIds) && keywordIds.length > 0) filters.push(`keywords = (${keywordIds.join(",")})`);
     if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
 
-    // ** Montagem segura da query **
-    const igdbQuery = [
-      (search && search.trim().length > 0) ? `search "${search}";` : "",
-      "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;",
-      (filters.length > 0) ? `where ${filters.join(' & ')};` : "",
-      `limit ${limit};`
-    ].filter(Boolean).join('\n');
+    // Montagem segura da query
+    const igdbQueryArr = [];
+    if (search && search.trim().length > 0) igdbQueryArr.push(`search "${search}";`);
+    igdbQueryArr.push("fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;");
+    if (filters.length > 0) igdbQueryArr.push(`where ${filters.join(' & ')};`);
+    igdbQueryArr.push(`limit ${limit};`);
+    const igdbQuery = igdbQueryArr.join('\n');
 
-    // LOG para debug (pode comentar se não quiser)
+    // (Opcional) Debug
     // console.log('\n--- IGDB QUERY ---\n' + igdbQuery + '\n------------------\n');
 
     const token = await getAccessToken();
@@ -196,14 +196,14 @@ app.get('/games', async (req, res) => {
     if (Array.isArray(keywordIds) && keywordIds.length > 0) filters.push(`keywords = (${keywordIds.join(",")})`);
     if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
 
-    const igdbQuery = [
-      (query && query.trim().length > 0) ? `search "${query}";` : "",
-      "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;",
-      (filters.length > 0) ? `where ${filters.join(' & ')};` : "",
-      `limit ${limit};`
-    ].filter(Boolean).join('\n');
+    const igdbQueryArr = [];
+    if (query && query.trim().length > 0) igdbQueryArr.push(`search "${query}";`);
+    igdbQueryArr.push("fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;");
+    if (filters.length > 0) igdbQueryArr.push(`where ${filters.join(' & ')};`);
+    igdbQueryArr.push(`limit ${limit};`);
+    const igdbQuery = igdbQueryArr.join('\n');
 
-    // LOG para debug (pode comentar se não quiser)
+    // (Opcional) Debug
     // console.log('\n--- IGDB QUERY ---\n' + igdbQuery + '\n------------------\n');
 
     const igdbResponse = await axios.post(
@@ -226,4 +226,6 @@ app.get('/games', async (req, res) => {
 
 app.listen(port, () => {
   console.log(`🎮 IGDB Proxy rodando em http://localhost:${port}`);
+});
+Proxy rodando em http://localhost:${port}`);
 });
