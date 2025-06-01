@@ -138,6 +138,7 @@ app.get('/games/ask', async (req, res) => {
   try {
     const pergunta = req.query.question || "";
     const { search, genreId, platformId, themeId, keywordIds, year, limit } = parseGameQuery(pergunta);
+
     let filters = [];
     if (genreId !== undefined && genreId !== null) filters.push(`genres = (${genreId})`);
     if (themeId !== undefined && themeId !== null) filters.push(`themes = (${themeId})`);
@@ -145,15 +146,15 @@ app.get('/games/ask', async (req, res) => {
     if (Array.isArray(keywordIds) && keywordIds.length > 0) filters.push(`keywords = (${keywordIds.join(",")})`);
     if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
 
-    // Montagem segura da query
     const igdbQuery = [
-  (search && search.length > 0) ? `search "${search}";` : "",
-  "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;",
-  (filters.length > 0) ? `where ${filters.join(' & ')};` : "",
-  `limit ${limit};`
-].filter(Boolean).join('\n');
-    // Debug opcional:
-    // console.log('IGDB QUERY:', igdbQuery);
+      (search && search.length > 0) ? `search "${search}";` : "",
+      "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;",
+      (filters.length > 0) ? `where ${filters.join(' & ')};` : "",
+      `limit ${limit};`
+    ].filter(Boolean).join('\n');
+
+    // (Opcional) Debug:
+    // console.log('\n--- IGDB QUERY ---\n' + igdbQuery + '\n------------------\n');
 
     const token = await getAccessToken();
     const igdbResponse = await axios.post(
@@ -174,7 +175,7 @@ app.get('/games/ask', async (req, res) => {
   }
 });
 
-// Endpoint manual (igual, só muda query params)
+// Endpoint manual
 app.get('/games', async (req, res) => {
   try {
     const token = await getAccessToken();
@@ -193,29 +194,27 @@ app.get('/games', async (req, res) => {
     if (Array.isArray(keywordIds) && keywordIds.length > 0) filters.push(`keywords = (${keywordIds.join(",")})`);
     if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
 
-    let igdbQuery = "";
-    if (query && query.length > 0) igdbQuery += `search "${query}";\n`;
-    igdbQuery += "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;\n";
-    if (filters.length > 0) {
-  igdbQuery += `where ${filters.join(' & ')};\n`;
-}
-igdbQuery += `limit ${limit};`;
+    const igdbQuery = [
+      (query && query.length > 0) ? `search "${query}";` : "",
+      "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;",
+      (filters.length > 0) ? `where ${filters.join(' & ')};` : "",
+      `limit ${limit};`
+    ].filter(Boolean).join('\n');
 
-// Adicione aqui:
-console.log('\n--- IGDB QUERY ---\n' + igdbQuery + '\n------------------\n');
+    // (Opcional) Debug:
+    // console.log('\n--- IGDB QUERY ---\n' + igdbQuery + '\n------------------\n');
 
-// Agora sim, a chamada axios:
-const igdbResponse = await axios.post(
-  'https://api.igdb.com/v4/games',
-  igdbQuery,
-  {
-    headers: {
-      'Client-ID': process.env.CLIENT_ID,
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'text/plain'
-    }
-  }
-);
+    const igdbResponse = await axios.post(
+      'https://api.igdb.com/v4/games',
+      igdbQuery,
+      {
+        headers: {
+          'Client-ID': process.env.CLIENT_ID,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'text/plain'
+        }
+      }
+    );
     res.json({ fallback: false, results: igdbResponse.data });
   } catch (error) {
     console.error(error.message);
