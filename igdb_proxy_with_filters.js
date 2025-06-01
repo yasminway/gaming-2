@@ -1,9 +1,9 @@
 const express = require("express");
 const axios = require("axios");
-const app = express();
 const cors = require("cors");
 require("dotenv").config();
 
+const app = express();
 app.use(cors());
 app.use(express.json());
 
@@ -20,22 +20,21 @@ const buildQuery = (params) => {
   if (params.year) {
     const start = `${params.year}-01-01`;
     const end = `${params.year}-12-31`;
-    filters.push(`first_release_date >= ${Math.floor(new Date(start) / 1000)}`);
-    filters.push(`first_release_date <= ${Math.floor(new Date(end) / 1000)}`);
+    filters.push(`first_release_date >= ${Math.floor(new Date(start).getTime() / 1000)}`);
+    filters.push(`first_release_date <= ${Math.floor(new Date(end).getTime() / 1000)}`);
   }
 
   if (params.genreId) filters.push(`genres = (${params.genreId})`);
   if (params.platform) filters.push(`platforms = (${params.platform})`);
-  if (params.themeId) filters.push(`themes = (${params.themeId})`);
 
   let searchLine = params.search ? `search "${params.search}";` : "";
 
   return `
     ${searchLine}
-    fields name,summary,genres.name,platforms.name,rating,cover.url,first_release_date;
+    fields name, summary, genres.name, platforms.name, rating, cover.url, first_release_date;
     ${filters.length > 0 ? `where ${filters.join(" & ")};` : ""}
-    limit ${params.limit || 10};
     sort first_release_date desc;
+    limit ${params.limit || 10};
   `;
 };
 
@@ -45,22 +44,23 @@ app.post("/games", async (req, res) => {
     const token = await getAccessToken();
     const clientId = process.env.CLIENT_ID;
 
-    const queryParams = {
-      limit: 50,
-    };
-
+    const queryParams = { limit: 50 };
     const lower = pergunta.toLowerCase();
 
+    // Gêneros mais comuns
     if (lower.includes("terror")) queryParams.genreId = 2;
     if (lower.includes("jrpg")) queryParams.genreId = 18;
     if (lower.includes("ação")) queryParams.genreId = 4;
     if (lower.includes("tático")) queryParams.genreId = 24;
 
-    if (lower.includes("protagonista feminina")) queryParams.themeId = 41;
-    if (lower.includes("low poly") || lower.includes("retrô")) queryParams.themeId = 20;
-
+    // Ano (ex: 2025)
     const yearMatch = lower.match(/\b(202[4-6])\b/);
     if (yearMatch) queryParams.year = yearMatch[1];
+
+    // Limpa palavras comuns pra focar na essência da busca
+    queryParams.search = pergunta
+      .replace(/\b(quais|são|os|jogos|com|protagonista|feminina|estão|previstos|pra|em|de|para|que|vão|ser|lançar|lançados)\b/gi, "")
+      .trim();
 
     const query = buildQuery(queryParams);
 
@@ -77,16 +77,17 @@ app.post("/games", async (req, res) => {
     return res.json({
       fallback: !jogos || jogos.length === 0,
       results: jogos || [],
-      message: (!jogos || jogos.length === 0) ? "Nenhum jogo encontrado com esses filtros" : undefined,
+      message: (!jogos || jogos.length === 0)
+        ? "Nenhum jogo encontrado com esses filtros"
+        : undefined,
     });
 
   } catch (err) {
-    console.error("Erro ao consultar IGDB:", err.message);
-
+    console.error("Erro na API IGDB:", err.message);
     return res.json({
       fallback: true,
       results: [],
-      message: "Erro na API IGDB — tentando outro caminho 💔",
+      message: "Erro na API IGDB — resposta vazia ou inválida 💔",
     });
   }
 });
