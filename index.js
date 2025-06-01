@@ -253,7 +253,12 @@ const igdbResponse = await axios.post(
 
 res.json({ fallback: false, results: igdbResponse.data });
 
-} catch (error) { console.error(error?.response?.data || error.message); res.json({ fallback: true, results: [], message: 'Erro na conexão com a IGDB.' }); } });
-
-app.listen(port, () => { console.log(Proxy rodando em http://localhost:${port}); });
-
+} catch (error) {
+    console.error(error?.response?.data || error.message);
+    res.json({
+      fallback: true,
+      results: [],
+      message: 'Erro na conexão com a IGDB.'
+    });
+  }
+});
