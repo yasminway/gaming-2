@@ -1,9 +1,12 @@
-// index.js atualizado com melhorias nos filtros e console.log para debug import express from 'express'; import axios from 'axios'; import dotenv from 'dotenv'; dotenv.config();
+import express from 'express';
+import axios from 'axios';
+import dotenv from 'dotenv';
+dotenv.config();
 
-const app = express(); const port = process.env.PORT || 3000;
+const app = express();
+const port = process.env.PORT || 3000;
 
-// Dicionários const genres = { "horror": 2, "jrpg": 12 }; const keywords = { "female protagonist": 962 };
-
+// Cole seu bloco de genres, platforms, themes e keywords aqui...
 // GENRES, PLATFORMS, THEMES
 const genres = {
   "terror": 2,
@@ -213,47 +216,121 @@ const keywords = {
   // pode adicionar mais conforme for achando!
 };
 
-// Funções auxiliares function extractGenres(text) { if (!text) return []; return Object.keys(genres).filter(g => text.toLowerCase().includes(g)).map(g => genres[g]); } function extractKeywords(text) { if (!text) return []; return Object.keys(keywords).filter(k => text.toLowerCase().includes(k)).map(k => keywords[k]); } function extractProtagonist(text) { return /female protagonist|protagonista feminina/i.test(text); } function extractYear(text) { const match = text?.match(/20\d{2}/); return match ? parseInt(match[0]) : undefined; }
+// Funções auxiliares
+function extractGameTitle(question) {
+  let m = question?.match(/["“”](.*?)["“”]/);
+  if (m) return m[1];
+  m = question?.match(/s[ée]rie ([\w\s:]+)/i);
+  if (m) return m[1].trim();
+  return null;
+}
+function extractYear(text) {
+  if (!text) return undefined;
+  const match = text.match(/20\d{2}/);
+  return match ? parseInt(match[0]) : undefined;
+}
+function extractGenres(text) {
+  if (!text) return [];
+  return Object.keys(genres).filter(g => text.toLowerCase().includes(g)).map(g => genres[g]);
+}
+function extractPlatforms(text) {
+  if (!text) return [];
+  return Object.keys(platforms).filter(p => text.toLowerCase().includes(p)).map(p => platforms[p]);
+}
+function extractThemes(text) {
+  if (!text) return [];
+  return Object.keys(themes).filter(t => text.toLowerCase().includes(t)).map(t => themes[t]);
+}
+function extractKeywords(text) {
+  if (!text || typeof keywords !== "object") return [];
+  return Object.keys(keywords).filter(k => text.toLowerCase().includes(k)).map(k => keywords[k]);
+}
+function extractProtagonist(text) {
+  if (!text) return false;
+  const re = /protagonista feminina|female protagonist|mulher|girl|garota|woman/i;
+  return re.test(text);
+}
 
-function parseGameQuery(question) { let search = question?.trim() || ""; const genreId = extractGenres(search)[0]; const keywordIds = extractKeywords(search); if (extractProtagonist(search) && !keywordIds.includes(962)) keywordIds.push(962); const year = extractYear(search);
+function parseGameQuery(question) {
+  let searchParts = [];
+  const title = extractGameTitle(question);
+  if (title) searchParts.push(title);
+  if (extractProtagonist(question)) searchParts.push("female protagonist");
 
-return { search, genreId, keywordIds, year, limit: 30 }; }
+  const genreIds = extractGenres(question);
+  const platformIds = extractPlatforms(question);
+  const themeIds = extractThemes(question);
+  const keywordIds = extractKeywords(question);
+  const year = extractYear(question);
 
-// Controle de token let accessToken = ''; let tokenExpiration = 0; async function getAccessToken() { if (Date.now() < tokenExpiration && accessToken) return accessToken; const response = await axios.post('https://id.twitch.tv/oauth2/token', null, { params: { client_id: process.env.CLIENT_ID, client_secret: process.env.CLIENT_SECRET, grant_type: 'client_credentials' } }); accessToken = response.data.access_token; tokenExpiration = Date.now() + response.data.expires_in * 1000; return accessToken; }
+  let search = searchParts.join(" ").trim();
+  if (!search && question) search = question.trim();
 
-// Endpoint inteligente app.get('/games/ask', async (req, res) => { try { const pergunta = req.query.question || ""; const { search, genreId, keywordIds, year, limit } = parseGameQuery(pergunta);
+  return {
+    search,
+    genreId: genreIds.length ? genreIds[0] : undefined,
+    platformId: platformIds.length ? platformIds[0] : undefined,
+    themeId: themeIds.length ? themeIds[0] : undefined,
+    keywordIds,
+    year,
+    limit: 30
+  };
+}
 
-let filters = [];
-if (genreId) filters.push(`(genres = (${genreId}) | themes = (${genreId}))`);
-if (Array.isArray(keywordIds) && keywordIds.length > 0) filters.push(`keywords = (${keywordIds.join(',')})`);
-if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
-
-const igdbQueryArr = [];
-if (search.length) igdbQueryArr.push(`search \"${search}\";`);
-igdbQueryArr.push("fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;");
-if (filters.length > 0) igdbQueryArr.push(`where ${filters.join(' & ')};`);
-igdbQueryArr.push(`limit ${limit};`);
-const igdbQuery = igdbQueryArr.join('\n');
-
-// Debug: mostra a query gerada
-console.log('\n--- IGDB QUERY ---\n' + igdbQuery + '\n------------------\n');
-
-const token = await getAccessToken();
-const igdbResponse = await axios.post(
-  'https://api.igdb.com/v4/games',
-  igdbQuery,
-  {
-    headers: {
-      'Client-ID': process.env.CLIENT_ID,
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'text/plain'
+// Controle de token
+let accessToken = '';
+let tokenExpiration = 0;
+async function getAccessToken() {
+  if (Date.now() < tokenExpiration && accessToken) return accessToken;
+  const response = await axios.post('https://id.twitch.tv/oauth2/token', null, {
+    params: {
+      client_id: process.env.CLIENT_ID,
+      client_secret: process.env.CLIENT_SECRET,
+      grant_type: 'client_credentials'
     }
-  }
-);
+  });
+  accessToken = response.data.access_token;
+  tokenExpiration = Date.now() + response.data.expires_in * 1000;
+  return accessToken;
+}
 
-res.json({ fallback: false, results: igdbResponse.data });
+// Endpoint inteligente
+app.get('/games/ask', async (req, res) => {
+  try {
+    const pergunta = req.query.question || "";
+    const { search, genreId, platformId, themeId, keywordIds, year, limit } = parseGameQuery(pergunta);
 
-} catch (error) {
+    let filters = [];
+    if (typeof genreId !== 'undefined') filters.push(`genres = (${genreId})`);
+    if (typeof themeId !== 'undefined') filters.push(`themes = (${themeId})`);
+    if (typeof platformId !== 'undefined') filters.push(`platforms = (${platformId})`);
+    if (Array.isArray(keywordIds) && keywordIds.length > 0) filters.push(`keywords = (${keywordIds.join(",")})`);
+    if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
+
+    const igdbQuery = [
+      search ? `search "${search}";` : "",
+      "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;",
+      filters.length ? `where ${filters.join(" & ")};` : "",
+      `limit ${limit};`
+    ].filter(Boolean).join("\n");
+
+    console.log("\n--- IGDB QUERY ---\n" + igdbQuery + "\n------------------\n");
+
+    const token = await getAccessToken();
+    const igdbResponse = await axios.post(
+      'https://api.igdb.com/v4/games',
+      igdbQuery,
+      {
+        headers: {
+          'Client-ID': process.env.CLIENT_ID,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'text/plain'
+        }
+      }
+    );
+
+    res.json({ fallback: false, results: igdbResponse.data });
+  } catch (error) {
     console.error(error?.response?.data || error.message);
     res.json({
       fallback: true,
@@ -261,4 +338,8 @@ res.json({ fallback: false, results: igdbResponse.data });
       message: 'Erro na conexão com a IGDB.'
     });
   }
+});
+
+app.listen(port, () => {
+  console.log(`Proxy rodando em http://localhost:${port}`);
 });
