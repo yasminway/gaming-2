@@ -101,7 +101,7 @@ app.get('/games/ask', async (req, res) => {
     const query = [
       search ? `search "${search}";` : "",
       "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;",
-      filters.length ? `where ${filters.join(" AND ")};` : "",
+      filters.length ? `where ${filters.join(" and ")};` : "",
       `limit ${limit};`
     ].filter(Boolean).join('\n');
 
