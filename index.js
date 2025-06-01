@@ -24,6 +24,7 @@ const keywords = {
   "death": 558, "multiple endings": 1313
 };
 
+// Função de extract (procura se cada termo individual está presente em cada dicionário)
 function extract(text, dict) {
   if (!text) return [];
   return Object.keys(dict).filter(k => text.toLowerCase().includes(k)).map(k => dict[k]);
@@ -33,32 +34,38 @@ function extractYear(text) {
   return m ? parseInt(m[0]) : undefined;
 }
 function extractTitle(text) {
-  const m = text?.match(/["“”](.*?)["“”]/) || text?.match(/s[ée]rie ([\w\s:]+)/i);
+  const m = text?.match(/["“”](.*?)["“”]/);
   return m ? m[1].trim() : null;
 }
 function toUnixTimestamp(dateStr) {
   return Math.floor(new Date(dateStr).getTime() / 1000);
 }
 
+// >>>>>>> NOVA FUNÇÃO DE PARSE, AGORA COM SPLIT <<<<<<<<
 function parseGameQuery(question) {
-  const genreIds = extract(question, genres);
-  const platformIds = extract(question, platforms);
-  const themeIds = extract(question, themes);
-  const keywordIds = extract(question, keywords);
-  const year = extractYear(question);
-  const title = extractTitle(question);
+  // Divide em partes por vírgula, ponto e vírgula ou “ e ” (com espaços)
+  let parts = question.split(/,| e |;/).map(s => s.trim().toLowerCase());
+  let genreIds = [], platformIds = [], themeIds = [], keywordIds = [];
+  let year, title;
 
-  return {
-    title,
-    genreIds,
-    platformIds,
-    themeIds,
-    keywordIds,
-    year,
-    limit: 30
-  };
+  for (const part of parts) {
+    genreIds.push(...extract(part, genres));
+    platformIds.push(...extract(part, platforms));
+    themeIds.push(...extract(part, themes));
+    keywordIds.push(...extract(part, keywords));
+    if (!year) year = extractYear(part);
+    if (!title) title = extractTitle(part);
+  }
+  // Remove duplicados
+  genreIds = [...new Set(genreIds)];
+  platformIds = [...new Set(platformIds)];
+  themeIds = [...new Set(themeIds)];
+  keywordIds = [...new Set(keywordIds)];
+
+  return { title, genreIds, platformIds, themeIds, keywordIds, year, limit: 30 };
 }
 
+// Autenticação IGDB
 let accessToken = '';
 let tokenExpiration = 0;
 async function getAccessToken() {
@@ -75,12 +82,14 @@ async function getAccessToken() {
   return accessToken;
 }
 
+// Filtros inteligentes
 function buildFilter(field, values) {
+  if (!values.length) return null;
   if (values.length === 1) return `${field} = ${values[0]}`;
-  if (values.length > 1) return `${field} = any (${values.join(',')})`;
-  return null;
+  return `${field} = any (${values.join(',')})`;
 }
 
+// Endpoint principal
 app.get('/games/ask', async (req, res) => {
   try {
     const pergunta = req.query.question || "";
@@ -104,6 +113,7 @@ app.get('/games/ask', async (req, res) => {
     }
 
     const igdbQueryArr = [];
+    // Só faz search se TÍTULO explícito!
     if (title) igdbQueryArr.push(`search "${title}";`);
     igdbQueryArr.push("fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;");
     if (filters.length) igdbQueryArr.push(`where ${filters.join(" and ")};`);
@@ -124,6 +134,7 @@ app.get('/games/ask', async (req, res) => {
     });
 
     res.json({ fallback: false, results: data });
+
   } catch (error) {
     console.error("[IGDB ERROR]", error?.response?.data || error.message);
     res.status(500).json({ fallback: true, results: [], message: 'Erro na conexão com a IGDB.' });
