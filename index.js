@@ -146,14 +146,12 @@ app.get('/games/ask', async (req, res) => {
     if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
 
     // Montagem segura da query
-    let igdbQuery = "";
-    if (search && search.length > 0) igdbQuery += `search "${search}";\n`;
-    igdbQuery += "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;\n";
-    if (filters.length > 0) {
-      igdbQuery += `where ${filters.join(' & ')};\n`;
-    }
-    igdbQuery += `limit ${limit};`;
-
+    const igdbQuery = [
+  (search && search.length > 0) ? `search "${search}";` : "",
+  "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;",
+  (filters.length > 0) ? `where ${filters.join(' & ')};` : "",
+  `limit ${limit};`
+].filter(Boolean).join('\n');
     // Debug opcional:
     // console.log('IGDB QUERY:', igdbQuery);
 
