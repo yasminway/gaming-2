@@ -117,7 +117,7 @@ function parseGameQuery(question) {
   };
 }
 
-// Controle de token
+// Controle de token IGDB
 let accessToken = '';
 let tokenExpiration = 0;
 async function getAccessToken() {
@@ -136,7 +136,6 @@ async function getAccessToken() {
 
 // Endpoint inteligente
 app.get('/games/ask', async (req, res) => {
-app.get('/games/ask', async (req, res) => {
   try {
     const pergunta = req.query.question || "";
     const { search, genreId, platformId, themeId, keywordIds, year, limit } = parseGameQuery(pergunta);
@@ -148,7 +147,7 @@ app.get('/games/ask', async (req, res) => {
     if (Array.isArray(keywordIds) && keywordIds.length > 0) filters.push(`keywords = (${keywordIds.join(",")})`);
     if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
 
-    // Aqui vai a montagem correta da query
+    // Montagem correta: search OU where, nunca ambos!
     let igdbQuery = "";
     if (search && filters.length === 0) {
       igdbQuery += `search "${search}";\n`;
@@ -159,7 +158,7 @@ app.get('/games/ask', async (req, res) => {
     }
     igdbQuery += `limit ${limit};`;
 
-    // LOG pra debug: sempre deixe ligado até funcionar
+    // Debug log
     console.log('\n--- IGDB QUERY ---\n' + igdbQuery + '\n------------------\n');
 
     const token = await getAccessToken();
@@ -200,14 +199,17 @@ app.get('/games', async (req, res) => {
     if (Array.isArray(keywordIds) && keywordIds.length > 0) filters.push(`keywords = (${keywordIds.join(",")})`);
     if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
 
-    const igdbQueryArr = [];
-    if (query && query.trim().length > 0) igdbQueryArr.push(`search "${query}";`);
-    igdbQueryArr.push("fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;");
-    if (filters.length > 0) igdbQueryArr.push(`where ${filters.join(' & ')};`);
-    igdbQueryArr.push(`limit ${limit};`);
-    const igdbQuery = igdbQueryArr.join('\n');
+    let igdbQuery = "";
+    if (query && filters.length === 0) {
+      igdbQuery += `search "${query}";\n`;
+    }
+    igdbQuery += "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;\n";
+    if (!query && filters.length > 0) {
+      igdbQuery += `where ${filters.join(' & ')};\n`;
+    }
+    igdbQuery += `limit ${limit};`;
 
-    // (Opcional) Debug
+    // Debug log
     console.log('\n--- IGDB QUERY ---\n' + igdbQuery + '\n------------------\n');
 
     const igdbResponse = await axios.post(
@@ -228,6 +230,7 @@ app.get('/games', async (req, res) => {
   }
 });
 
+// SÓ UMA VEZ O LISTEN!
 app.listen(port, () => {
   console.log(`Proxy rodando em http://localhost:${port}`);
 });
