@@ -49,19 +49,18 @@ app.post("/games", async (req, res) => {
       limit: 50,
     };
 
-    const lowerQuestion = pergunta.toLowerCase();
+    const lower = pergunta.toLowerCase();
 
-    if (lowerQuestion.includes("terror")) queryParams.genreId = 2;
-    if (lowerQuestion.includes("jrpg")) queryParams.genreId = 18;
-    if (lowerQuestion.includes("ação")) queryParams.genreId = 4;
-    if (lowerQuestion.includes("tático")) queryParams.genreId = 24;
+    if (lower.includes("terror")) queryParams.genreId = 2;
+    if (lower.includes("jrpg")) queryParams.genreId = 18;
+    if (lower.includes("ação")) queryParams.genreId = 4;
+    if (lower.includes("tático")) queryParams.genreId = 24;
 
-    if (lowerQuestion.includes("protagonista feminina")) queryParams.themeId = 41;
-    if (lowerQuestion.includes("low poly") || lowerQuestion.includes("retrô")) queryParams.themeId = 20;
-    if (lowerQuestion.includes("melancólico") || lowerQuestion.includes("melancolia")) queryParams.themeId = 41;
+    if (lower.includes("protagonista feminina")) queryParams.themeId = 41;
+    if (lower.includes("low poly") || lower.includes("retrô")) queryParams.themeId = 20;
 
-    const anoMatch = lowerQuestion.match(/\b(202[4-6])\b/);
-    if (anoMatch) queryParams.year = anoMatch[1];
+    const yearMatch = lower.match(/\b(202[4-6])\b/);
+    if (yearMatch) queryParams.year = yearMatch[1];
 
     const query = buildQuery(queryParams);
 
@@ -75,24 +74,19 @@ app.post("/games", async (req, res) => {
 
     const jogos = response.data;
 
-    if (!jogos || jogos.length === 0) {
-      return res.json({
-        fallback: true,
-        results: [],
-        message: "Nenhum jogo encontrado com esses filtros — quer que eu tente com critérios mais amplos ou busque na web?",
-      });
-    }
-
     return res.json({
-      fallback: false,
-      results: jogos,
+      fallback: !jogos || jogos.length === 0,
+      results: jogos || [],
+      message: (!jogos || jogos.length === 0) ? "Nenhum jogo encontrado com esses filtros" : undefined,
     });
 
   } catch (err) {
-    console.error("Erro ao consultar IGDB:", err);
-    return res.status(500).json({
-      erro: "Erro IGDB",
-      detalhe: err.message || "Erro desconhecido",
+    console.error("Erro ao consultar IGDB:", err.message);
+
+    return res.json({
+      fallback: true,
+      results: [],
+      message: "Erro na API IGDB — tentando outro caminho 💔",
     });
   }
 });
