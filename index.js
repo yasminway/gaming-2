@@ -125,7 +125,7 @@ app.get('/games/ask', async (req, res) => {
 
     res.json({ fallback: false, results: data });
   } catch (error) {
-    console.error(error?.response?.data || error.message);
+    console.error("[IGDB ERROR]", error?.response?.data || error.message);
     res.status(500).json({ fallback: true, results: [], message: 'Erro na conexão com a IGDB.' });
   }
 });
