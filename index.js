@@ -6,6 +6,7 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Mapeamentos para filtros
 const genres = {
   "terror": 2, "horror": 2, "rpg": 12, "jrpg": 12, "aventura": 31, "adventure": 31,
   "ação": 5, "action": 5, "simulação": 13, "simulation": 13, "plataforma": 8, "platformer": 8
@@ -20,6 +21,23 @@ const themes = {
   "low poly": 20, "experimental": 20, "survival": 19, "mystery": 43,
   "psicológico": 31, "psychological": 31, "indie": 32
 };
+
+// Busca nome/franquia exata (aspas OU "série NomeDaFranquia")
+function extractGameTitle(question) {
+  let m = question.match(/["“”](.*?)["“”]/);
+  if (m) return m[1];
+  m = question.match(/s[ée]rie ([\w\s:'\-]+)/i);
+  if (m) return m[1].trim();
+  // Também tenta detectar nomes de franquia explícitos
+  const knownFranchises = [
+    'Fatal Frame','Silent Hill','Persona','Final Fantasy','Resident Evil','Dragon Quest',
+    'Monster Hunter','Pokémon','Fire Emblem','Zelda','Mario','Bloodborne','Atelier','Yakuza'
+  ];
+  for (let f of knownFranchises) {
+    if (question.toLowerCase().includes(f.toLowerCase())) return f;
+  }
+  return null;
+}
 
 function extractYear(text) {
   const match = text.match(/20\d{2}/);
@@ -38,14 +56,12 @@ function extractProtagonist(text) {
   const re = /protagonista feminina|female protagonist|mulher|girl|garota|woman/i;
   return re.test(text);
 }
-function getYearUnixRange(year) {
-  const start = Math.floor(new Date(`${year}-01-01`).getTime() / 1000);
-  const end = Math.floor(new Date(`${year}-12-31`).getTime() / 1000);
-  return { start, end };
-}
 
 function parseGameQuery(question) {
   let searchParts = [];
+  // Busca exata por nome/franquia (alta prioridade)
+  const title = extractGameTitle(question);
+  if (title) searchParts.push(title);
   if (extractProtagonist(question)) searchParts.push("female protagonist");
   const genreIds = extractGenres(question);
   const platformIds = extractPlatforms(question);
@@ -53,7 +69,7 @@ function parseGameQuery(question) {
   const year = extractYear(question);
 
   return {
-    search: searchParts.join(" "),
+    search: searchParts.length ? searchParts.join(" ") : "",
     genreId: genreIds.length ? genreIds[0] : undefined,
     platformId: platformIds.length ? platformIds[0] : undefined,
     themeId: themeIds.length ? themeIds[0] : undefined,
@@ -62,9 +78,9 @@ function parseGameQuery(question) {
   };
 }
 
+// Token management
 let accessToken = '';
 let tokenExpiration = 0;
-
 async function getAccessToken() {
   if (Date.now() < tokenExpiration) return accessToken;
   const response = await axios.post('https://id.twitch.tv/oauth2/token', null, {
@@ -88,21 +104,13 @@ app.get('/games/ask', async (req, res) => {
     if (genreId) filters.push(`genres = (${genreId})`);
     if (themeId) filters.push(`themes = (${themeId})`);
     if (platformId) filters.push(`platforms = (${platformId})`);
-    if (year) {
-      const { start, end } = getYearUnixRange(year);
-      filters.push(`first_release_date >= ${start} & first_release_date <= ${end}`);
-    }
-
+    if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
     const igdbQuery = `
       ${search ? `search "${search}";` : ""}
       fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name;
       ${filters.length > 0 ? `where ${filters.join(' & ')};` : ""}
       limit ${limit};
     `;
-
-    // Para debug, descomente a linha abaixo:
-    // console.log('IGDB Query:', igdbQuery);
-
     const token = await getAccessToken();
     const igdbResponse = await axios.post(
       'https://api.igdb.com/v4/games',
@@ -122,7 +130,7 @@ app.get('/games/ask', async (req, res) => {
   }
 });
 
-// Rota manual pra queries estruturadas
+// Rota manual
 app.get('/games', async (req, res) => {
   try {
     const token = await getAccessToken();
@@ -132,23 +140,17 @@ app.get('/games', async (req, res) => {
     const platformId = req.query.platformId;
     const year = req.query.year;
     const limit = req.query.limit || 30;
-
     let filters = [];
     if (genreId) filters.push(`genres = (${genreId})`);
     if (themeId) filters.push(`themes = (${themeId})`);
     if (platformId) filters.push(`platforms = (${platformId})`);
-    if (year) {
-      const { start, end } = getYearUnixRange(year);
-      filters.push(`first_release_date >= ${start} & first_release_date <= ${end}`);
-    }
-
+    if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
     const igdbQuery = `
-      ${query ? `search "${query}";` : ""}
+      search "${query}";
       fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name;
       ${filters.length > 0 ? `where ${filters.join(' & ')};` : ""}
       limit ${limit};
     `;
-
     const igdbResponse = await axios.post(
       'https://api.igdb.com/v4/games',
       igdbQuery,
