@@ -1,4 +1,8 @@
-// index.js import express from 'express'; import axios from 'axios'; import dotenv from 'dotenv'; dotenv.config();
+// index.js
+import express from 'express';
+import axios from 'axios'; 
+import dotenv from 'dotenv'; 
+dotenv.config();
 
 const app = express(); const port = process.env.PORT || 3000;
 
