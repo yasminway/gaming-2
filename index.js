@@ -8,18 +8,30 @@ const port = process.env.PORT || 3000;
 
 // GENRES, PLATFORMS, THEMES
 const genres = {
-  "terror": 2, "horror": 2, "rpg": 12, "jrpg": 12, "aventura": 31, "adventure": 31,
-  "ação": 5, "action": 5, "simulação": 13, "simulation": 13, "plataforma": 8, "platformer": 8
+  "terror": 2, "horror": 2,
+  "rpg": 12, "jrpg": 12,
+  "aventura": 31, "adventure": 31,
+  "ação": 5, "action": 5,
+  "simulação": 13, "simulation": 13,
+  "plataforma": 8, "platformer": 8
 };
 const platforms = {
-  "ps2": 7, "playstation 2": 7, "ps3": 9, "playstation 3": 9, "ps4": 48, "playstation 4": 48, "ps5": 167, "playstation 5": 167,
-  "switch": 130, "nintendo switch": 130, "pc": 6, "xbox": 11, "xbox one": 49, "xbox series": 169
+  "ps2": 7, "playstation 2": 7,
+  "ps3": 9, "playstation 3": 9,
+  "ps4": 48, "playstation 4": 48,
+  "ps5": 167, "playstation 5": 167,
+  "switch": 130, "nintendo switch": 130,
+  "pc": 6,
+  "xbox": 11, "xbox one": 49, "xbox series": 169
 };
 const themes = {
-  "low poly": 20, "experimental": 20, "survival": 19, "mystery": 43, "psicológico": 31, "psychological": 31, "indie": 32
+  "low poly": 20, "experimental": 20,
+  "survival": 19, "mystery": 43,
+  "psicológico": 31, "psychological": 31,
+  "indie": 32
 };
 
-// Cole o SEU bloco de keywords aqui!
+// ---------- Cole o bloco de keywords AQUI ----------
 const keywords = {
   // === Horror, RPG, JRPG keywords (suas + sugestões) ===
   "ghosts": 16,
@@ -179,40 +191,56 @@ const keywords = {
   "dark past": 1930
   // pode adicionar mais conforme for achando!
 };
+// --------------------------------------------------
 
 // Funções auxiliares
 function extractGameTitle(question) {
-  let m = question?.match(/["“”](.*?)["“”]/);
+  if (!question) return null;
+  let m = question.match(/["“”](.*?)["“”]/);
   if (m) return m[1];
-  m = question?.match(/s[ée]rie ([\w\s:]+)/i);
-  if (m) return m[1].trim();
-  return null;
+  m = question.match(/s[ée]rie ([\w\s:]+)/i);
+  return m ? m[1].trim() : null;
 }
 function extractYear(text) {
   if (!text) return undefined;
   const match = text.match(/20\d{2}/);
-  return match ? parseInt(match[0]) : undefined;
+  return match ? parseInt(match[0], 10) : undefined;
 }
 function extractGenres(text) {
   if (!text) return [];
-  return Object.keys(genres).filter(g => text.toLowerCase().includes(g)).map(g => genres[g]);
+  return Object.keys(genres)
+    .filter(g => text.toLowerCase().includes(g))
+    .map(g => genres[g]);
 }
 function extractPlatforms(text) {
   if (!text) return [];
-  return Object.keys(platforms).filter(p => text.toLowerCase().includes(p)).map(p => platforms[p]);
+  return Object.keys(platforms)
+    .filter(p => text.toLowerCase().includes(p))
+    .map(p => platforms[p]);
 }
 function extractThemes(text) {
   if (!text) return [];
-  return Object.keys(themes).filter(t => text.toLowerCase().includes(t)).map(t => themes[t]);
+  return Object.keys(themes)
+    .filter(t => text.toLowerCase().includes(t))
+    .map(t => themes[t]);
 }
 function extractKeywords(text) {
   if (!text || typeof keywords !== "object") return [];
-  return Object.keys(keywords).filter(k => text.toLowerCase().includes(k)).map(k => keywords[k]);
+  return Object.keys(keywords)
+    .filter(k => text.toLowerCase().includes(k))
+    .map(k => keywords[k]);
 }
 function extractProtagonist(text) {
   if (!text) return false;
   const re = /protagonista feminina|female protagonist|mulher|girl|garota|woman/i;
   return re.test(text);
+}
+
+// Converte ano para timestamps de início e fim do ano
+function yearToTimestampRange(year) {
+  const start = new Date(year, 0, 1).getTime() / 1000;
+  const end = new Date(year + 1, 0, 1).getTime() / 1000;
+  return { start: Math.floor(start), end: Math.floor(end) };
 }
 
 function parseGameQuery(question) {
@@ -221,10 +249,10 @@ function parseGameQuery(question) {
   if (title) searchParts.push(title);
   if (extractProtagonist(question)) searchParts.push("female protagonist");
 
-  const genreIds = Array.isArray(extractGenres(question)) ? extractGenres(question) : [];
-  const platformIds = Array.isArray(extractPlatforms(question)) ? extractPlatforms(question) : [];
-  const themeIds = Array.isArray(extractThemes(question)) ? extractThemes(question) : [];
-  const keywordIds = Array.isArray(extractKeywords(question)) ? extractKeywords(question) : [];
+  const genreIds = extractGenres(question);
+  const platformIds = extractPlatforms(question);
+  const themeIds = extractThemes(question);
+  const keywordIds = extractKeywords(question);
   const year = extractYear(question);
 
   let search = searchParts.join(" ").trim();
@@ -235,55 +263,92 @@ function parseGameQuery(question) {
     genreId: genreIds.length ? genreIds[0] : undefined,
     platformId: platformIds.length ? platformIds[0] : undefined,
     themeId: themeIds.length ? themeIds[0] : undefined,
-    keywordIds: keywordIds,
-    year: year,
+    keywordIds,
+    year,
     limit: 30
   };
 }
 
-// Controle de token IGDB
+// Controle de token Twitch/IGDB
 let accessToken = '';
 let tokenExpiration = 0;
 async function getAccessToken() {
-  if (Date.now() < tokenExpiration && accessToken) return accessToken;
-  const response = await axios.post('https://id.twitch.tv/oauth2/token', null, {
-    params: {
-      client_id: process.env.CLIENT_ID,
-      client_secret: process.env.CLIENT_SECRET,
-      grant_type: 'client_credentials'
+  if (Date.now() < tokenExpiration && accessToken) {
+    return accessToken;
+  }
+  const response = await axios.post(
+    'https://id.twitch.tv/oauth2/token',
+    null,
+    {
+      params: {
+        client_id: process.env.CLIENT_ID,
+        client_secret: process.env.CLIENT_SECRET,
+        grant_type: 'client_credentials'
+      }
     }
-  });
+  );
   accessToken = response.data.access_token;
   tokenExpiration = Date.now() + response.data.expires_in * 1000;
   return accessToken;
 }
 
-// Endpoint inteligente
+// Endpoint inteligente: /games/ask?question=...
 app.get('/games/ask', async (req, res) => {
   try {
-    const pergunta = req.query.question || "";
-    const { search, genreId, platformId, themeId, keywordIds, year, limit } = parseGameQuery(pergunta);
+    const question = req.query.question || "";
+    const {
+      search,
+      genreId,
+      platformId,
+      themeId,
+      keywordIds,
+      year,
+      limit
+    } = parseGameQuery(question);
 
     let filters = [];
-    if (typeof genreId !== 'undefined') filters.push(`genres = (${genreId})`);
-    if (typeof themeId !== 'undefined') filters.push(`themes = (${themeId})`);
-    if (typeof platformId !== 'undefined') filters.push(`platforms = (${platformId})`);
-    if (Array.isArray(keywordIds) && keywordIds.length > 0) filters.push(`keywords = (${keywordIds.join(",")})`);
-    if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
-
-    // Montagem correta: search OU where, nunca ambos!
-    let igdbQuery = "";
-    if (search && filters.length === 0) {
-      igdbQuery += `search "${search}";\n`;
+    if (typeof genreId !== 'undefined') {
+      filters.push(`genres = (${genreId})`);
     }
-    igdbQuery += "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;\n";
-    if (!search && filters.length > 0) {
-      igdbQuery += `where ${filters.join(' & ')};\n`;
+    if (typeof themeId !== 'undefined') {
+      filters.push(`themes = (${themeId})`);
     }
-    igdbQuery += `limit ${limit};`;
+    if (typeof platformId !== 'undefined') {
+      filters.push(`platforms = (${platformId})`);
+    }
+    if (Array.isArray(keywordIds) && keywordIds.length > 0) {
+      filters.push(`keywords = (${keywordIds.join(",")})`);
+    }
+    if (year) {
+      const { start, end } = yearToTimestampRange(year);
+      filters.push(`first_release_date >= ${start} & first_release_date < ${end}`);
+    }
 
-    // Debug log
-    console.log('\n--- IGDB QUERY ---\n' + igdbQuery + '\n------------------\n');
+    // Montagem da query IGDB
+    const igdbQueryArr = [];
+    if (search && search.trim().length > 0) {
+      igdbQueryArr.push(`search "${search}";`);
+    }
+    igdbQueryArr.push(`
+      fields
+        name,
+        summary,
+        genres.name,
+        platforms.name,
+        cover.url,
+        first_release_date,
+        rating,
+        themes.name,
+        keywords.name;
+    `.trim());
+    if (filters.length > 0) {
+      igdbQueryArr.push(`where ${filters.join(' & ')};`);
+    }
+    igdbQueryArr.push(`limit ${limit};`);
+    const igdbQuery = igdbQueryArr.join('\n');
+
+    // (Opcional) Descomente para debugar a query gerada
+    // console.log('\n--- IGDB QUERY ---\n', igdbQuery, '\n------------------\n');
 
     const token = await getAccessToken();
     const igdbResponse = await axios.post(
@@ -297,14 +362,22 @@ app.get('/games/ask', async (req, res) => {
         }
       }
     );
-    res.json({ fallback: false, results: igdbResponse.data });
+
+    res.json({
+      fallback: false,
+      results: igdbResponse.data
+    });
   } catch (error) {
     console.error(error?.response?.data || error.message);
-    res.json({ fallback: true, results: [], message: 'Erro na conexão com a IGDB.' });
+    res.json({
+      fallback: true,
+      results: [],
+      message: 'Erro na conexão com a IGDB.'
+    });
   }
 });
 
-// Endpoint manual
+// Endpoint manual “/games?search=&genreId=&themeId=&platformId=&keywordIds=&year=&limit=”
 app.get('/games', async (req, res) => {
   try {
     const token = await getAccessToken();
@@ -312,29 +385,54 @@ app.get('/games', async (req, res) => {
     const genreId = req.query.genreId;
     const themeId = req.query.themeId;
     const platformId = req.query.platformId;
-    const keywordIds = req.query.keywordIds ? req.query.keywordIds.split(',').map(x => x.trim()) : [];
-    const year = req.query.year;
+    const keywordIds = req.query.keywordIds
+      ? req.query.keywordIds.split(',').map(x => x.trim())
+      : [];
+    const year = req.query.year ? parseInt(req.query.year, 10) : undefined;
     const limit = req.query.limit || 30;
 
     let filters = [];
-    if (typeof genreId !== 'undefined') filters.push(`genres = (${genreId})`);
-    if (typeof themeId !== 'undefined') filters.push(`themes = (${themeId})`);
-    if (typeof platformId !== 'undefined') filters.push(`platforms = (${platformId})`);
-    if (Array.isArray(keywordIds) && keywordIds.length > 0) filters.push(`keywords = (${keywordIds.join(",")})`);
-    if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
-
-    let igdbQuery = "";
-    if (query && filters.length === 0) {
-      igdbQuery += `search "${query}";\n`;
+    if (typeof genreId !== 'undefined') {
+      filters.push(`genres = (${genreId})`);
     }
-    igdbQuery += "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;\n";
-    if (!query && filters.length > 0) {
-      igdbQuery += `where ${filters.join(' & ')};\n`;
+    if (typeof themeId !== 'undefined') {
+      filters.push(`themes = (${themeId})`);
     }
-    igdbQuery += `limit ${limit};`;
+    if (typeof platformId !== 'undefined') {
+      filters.push(`platforms = (${platformId})`);
+    }
+    if (Array.isArray(keywordIds) && keywordIds.length > 0) {
+      filters.push(`keywords = (${keywordIds.join(",")})`);
+    }
+    if (year) {
+      const { start, end } = yearToTimestampRange(year);
+      filters.push(`first_release_date >= ${start} & first_release_date < ${end}`);
+    }
 
-    // Debug log
-    console.log('\n--- IGDB QUERY ---\n' + igdbQuery + '\n------------------\n');
+    const igdbQueryArr = [];
+    if (query && query.trim().length > 0) {
+      igdbQueryArr.push(`search "${query}";`);
+    }
+    igdbQueryArr.push(`
+      fields
+        name,
+        summary,
+        genres.name,
+        platforms.name,
+        cover.url,
+        first_release_date,
+        rating,
+        themes.name,
+        keywords.name;
+    `.trim());
+    if (filters.length > 0) {
+      igdbQueryArr.push(`where ${filters.join(' & ')};`);
+    }
+    igdbQueryArr.push(`limit ${limit};`);
+    const igdbQuery = igdbQueryArr.join('\n');
+
+    // (Opcional) Debug da query gerada
+    // console.log('\n--- IGDB QUERY (manual) ---\n', igdbQuery, '\n---------------------------\n');
 
     const igdbResponse = await axios.post(
       'https://api.igdb.com/v4/games',
@@ -347,14 +445,20 @@ app.get('/games', async (req, res) => {
         }
       }
     );
-    res.json({ fallback: false, results: igdbResponse.data });
+    res.json({
+      fallback: false,
+      results: igdbResponse.data
+    });
   } catch (error) {
     console.error(error?.response?.data || error.message);
-    res.json({ fallback: true, results: [], message: 'Erro na conexão com a IGDB.' });
+    res.json({
+      fallback: true,
+      results: [],
+      message: 'Erro na conexão com a IGDB.'
+    });
   }
 });
 
-// SÓ UMA VEZ O LISTEN!
 app.listen(port, () => {
-  console.log(`Proxy rodando em http://localhost:${port}`);
+  console.log(`🎮 IGDB Proxy rodando em http://localhost:${port}`);
 });
