@@ -7,10 +7,22 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-const genres = { "horror": 2, "terror": 2, "rpg": 12, "jrpg": 12, "adventure": 31, "aventura": 31, "action": 5, "ação": 5, "simulation": 13, "simulação": 13, "platformer": 8, "plataforma": 8 };
-const platforms = { "ps2": 7, "playstation 2": 7, "ps3": 9, "playstation 3": 9, "ps4": 48, "playstation 4": 48, "ps5": 167, "playstation 5": 167, "switch": 130, "nintendo switch": 130, "pc": 6, "xbox": 11, "xbox one": 49, "xbox series": 169 };
-const themes = { "survival": 19, "mystery": 43, "psychological": 31, "psicológico": 31, "indie": 32 };
-const keywords = { "female protagonist": 962, "survival horror": 1836, "camera": 1834, "ghosts": 16, "death": 558, "multiple endings": 1313 };
+const genres = {
+  "horror": 2, "terror": 2, "rpg": 12, "jrpg": 12, "adventure": 31, "aventura": 31,
+  "action": 5, "ação": 5, "simulation": 13, "simulação": 13, "platformer": 8, "plataforma": 8
+};
+const platforms = {
+  "ps2": 7, "playstation 2": 7, "ps3": 9, "playstation 3": 9, "ps4": 48, "playstation 4": 48,
+  "ps5": 167, "playstation 5": 167, "switch": 130, "nintendo switch": 130,
+  "pc": 6, "xbox": 11, "xbox one": 49, "xbox series": 169
+};
+const themes = {
+  "survival": 19, "mystery": 43, "psychological": 31, "psicológico": 31, "indie": 32
+};
+const keywords = {
+  "female protagonist": 962, "survival horror": 1836, "camera": 1834, "ghosts": 16,
+  "death": 558, "multiple endings": 1313
+};
 
 function extract(text, dict) {
   if (!text) return [];
@@ -38,9 +50,9 @@ function parseGameQuery(question) {
 
   return {
     title,
-    genreId: genreIds[0],
-    platformId: platformIds[0],
-    themeId: themeIds[0],
+    genreIds,
+    platformIds,
+    themeIds,
     keywordIds,
     year,
     limit: 30
@@ -60,3 +72,64 @@ async function getAccessToken() {
   });
   accessToken = data.access_token;
   tokenExpiration = Date.now() + data.expires_in * 1000;
+  return accessToken;
+}
+
+function buildFilter(field, values) {
+  if (values.length === 1) return `${field} = ${values[0]}`;
+  if (values.length > 1) return `${field} = any (${values.join(',')})`;
+  return null;
+}
+
+app.get('/games/ask', async (req, res) => {
+  try {
+    const pergunta = req.query.question || "";
+    const { title, genreIds, platformIds, themeIds, keywordIds, year, limit } = parseGameQuery(pergunta);
+
+    const filters = [];
+    const genreFilter = buildFilter('genres', genreIds);
+    const platformFilter = buildFilter('platforms', platformIds);
+    const themeFilter = buildFilter('themes', themeIds);
+    const keywordFilter = buildFilter('keywords', keywordIds);
+
+    if (genreFilter) filters.push(genreFilter);
+    if (platformFilter) filters.push(platformFilter);
+    if (themeFilter) filters.push(themeFilter);
+    if (keywordFilter) filters.push(keywordFilter);
+
+    if (year) {
+      const start = toUnixTimestamp(`${year}-01-01`);
+      const end = toUnixTimestamp(`${year}-12-31`);
+      filters.push(`first_release_date >= ${start} and first_release_date <= ${end}`);
+    }
+
+    const igdbQueryArr = [];
+    if (title) igdbQueryArr.push(`search "${title}";`);
+    igdbQueryArr.push("fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;");
+    if (filters.length) igdbQueryArr.push(`where ${filters.join(" and ")};`);
+    igdbQueryArr.push("sort first_release_date desc;");
+    igdbQueryArr.push(`limit ${limit};`);
+
+    const query = igdbQueryArr.join('\n');
+
+    console.log("\n--- IGDB QUERY ---\n" + query + "\n------------------");
+
+    const token = await getAccessToken();
+    const { data } = await axios.post('https://api.igdb.com/v4/games', query, {
+      headers: {
+        'Client-ID': process.env.CLIENT_ID,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'text/plain'
+      }
+    });
+
+    res.json({ fallback: false, results: data });
+  } catch (error) {
+    console.error(error?.response?.data || error.message);
+    res.status(500).json({ fallback: true, results: [], message: 'Erro na conexão com a IGDB.' });
+  }
+});
+
+app.listen(port, () => {
+  console.log('Proxy rodando em http://localhost:' + port);
+});
