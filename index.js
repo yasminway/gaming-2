@@ -1,12 +1,13 @@
 import express from 'express';
 import axios from 'axios';
 import dotenv from 'dotenv';
+import keywords from './keywords.js';
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Mapeamentos para filtros
+// Gêneros, plataformas e temas
 const genres = {
   "terror": 2, "horror": 2, "rpg": 12, "jrpg": 12, "aventura": 31, "adventure": 31,
   "ação": 5, "action": 5, "simulação": 13, "simulation": 13, "plataforma": 8, "platformer": 8
@@ -22,13 +23,12 @@ const themes = {
   "psicológico": 31, "psychological": 31, "indie": 32
 };
 
-// Busca nome/franquia exata (aspas OU "série NomeDaFranquia")
 function extractGameTitle(question) {
   let m = question.match(/["“”](.*?)["“”]/);
   if (m) return m[1];
   m = question.match(/s[ée]rie ([\w\s:'\-]+)/i);
   if (m) return m[1].trim();
-  // Também tenta detectar nomes de franquia explícitos
+  // Lista de franquias famosas (pode ampliar!)
   const knownFranchises = [
     'Fatal Frame','Silent Hill','Persona','Final Fantasy','Resident Evil','Dragon Quest',
     'Monster Hunter','Pokémon','Fire Emblem','Zelda','Mario','Bloodborne','Atelier','Yakuza'
@@ -56,16 +56,19 @@ function extractProtagonist(text) {
   const re = /protagonista feminina|female protagonist|mulher|girl|garota|woman/i;
   return re.test(text);
 }
+function extractKeywords(text) {
+  return Object.keys(keywords).filter(k => text.toLowerCase().includes(k)).map(k => keywords[k]);
+}
 
 function parseGameQuery(question) {
   let searchParts = [];
-  // Busca exata por nome/franquia (alta prioridade)
   const title = extractGameTitle(question);
   if (title) searchParts.push(title);
   if (extractProtagonist(question)) searchParts.push("female protagonist");
   const genreIds = extractGenres(question);
   const platformIds = extractPlatforms(question);
   const themeIds = extractThemes(question);
+  const keywordIds = extractKeywords(question);
   const year = extractYear(question);
 
   return {
@@ -73,12 +76,13 @@ function parseGameQuery(question) {
     genreId: genreIds.length ? genreIds[0] : undefined,
     platformId: platformIds.length ? platformIds[0] : undefined,
     themeId: themeIds.length ? themeIds[0] : undefined,
+    keywordIds: keywordIds.length ? keywordIds : undefined,
     year: year,
     limit: 30
   };
 }
 
-// Token management
+// Token da Twitch/IGDB
 let accessToken = '';
 let tokenExpiration = 0;
 async function getAccessToken() {
@@ -99,15 +103,16 @@ async function getAccessToken() {
 app.get('/games/ask', async (req, res) => {
   try {
     const pergunta = req.query.question || "";
-    const { search, genreId, platformId, themeId, year, limit } = parseGameQuery(pergunta);
+    const { search, genreId, platformId, themeId, keywordIds, year, limit } = parseGameQuery(pergunta);
     let filters = [];
     if (genreId) filters.push(`genres = (${genreId})`);
     if (themeId) filters.push(`themes = (${themeId})`);
     if (platformId) filters.push(`platforms = (${platformId})`);
+    if (keywordIds && keywordIds.length) filters.push(`keywords = (${keywordIds.join(",")})`);
     if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
     const igdbQuery = `
       ${search ? `search "${search}";` : ""}
-      fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name;
+      fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;
       ${filters.length > 0 ? `where ${filters.join(' & ')};` : ""}
       limit ${limit};
     `;
@@ -139,15 +144,17 @@ app.get('/games', async (req, res) => {
     const themeId = req.query.themeId;
     const platformId = req.query.platformId;
     const year = req.query.year;
+    const keywordIds = req.query.keywordIds ? req.query.keywordIds.split(',') : [];
     const limit = req.query.limit || 30;
     let filters = [];
     if (genreId) filters.push(`genres = (${genreId})`);
     if (themeId) filters.push(`themes = (${themeId})`);
     if (platformId) filters.push(`platforms = (${platformId})`);
+    if (keywordIds.length) filters.push(`keywords = (${keywordIds.join(",")})`);
     if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
     const igdbQuery = `
       search "${query}";
-      fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name;
+      fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;
       ${filters.length > 0 ? `where ${filters.join(' & ')};` : ""}
       limit ${limit};
     `;
