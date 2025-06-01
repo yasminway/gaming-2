@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "igdb_proxy_all_fields.js",
   "scripts": {
-    "start": "node igdb_proxy_com_fallback.js"
+    "start": "node igdb_proxy_with_filters.js"
   },
   "dependencies": {
     "axios": "^1.6.8",
