@@ -136,6 +136,7 @@ async function getAccessToken() {
 
 // Endpoint inteligente
 app.get('/games/ask', async (req, res) => {
+app.get('/games/ask', async (req, res) => {
   try {
     const pergunta = req.query.question || "";
     const { search, genreId, platformId, themeId, keywordIds, year, limit } = parseGameQuery(pergunta);
@@ -147,16 +148,19 @@ app.get('/games/ask', async (req, res) => {
     if (Array.isArray(keywordIds) && keywordIds.length > 0) filters.push(`keywords = (${keywordIds.join(",")})`);
     if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
 
-    // Montagem segura da query
-    const igdbQueryArr = [];
-    if (search && search.trim().length > 0) igdbQueryArr.push(`search "${search}";`);
-    igdbQueryArr.push("fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;");
-    if (filters.length > 0) igdbQueryArr.push(`where ${filters.join(' & ')};`);
-    igdbQueryArr.push(`limit ${limit};`);
-    const igdbQuery = igdbQueryArr.join('\n');
+    // Aqui vai a montagem correta da query
+    let igdbQuery = "";
+    if (search && filters.length === 0) {
+      igdbQuery += `search "${search}";\n`;
+    }
+    igdbQuery += "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;\n";
+    if (!search && filters.length > 0) {
+      igdbQuery += `where ${filters.join(' & ')};\n`;
+    }
+    igdbQuery += `limit ${limit};`;
 
-    // (Opcional) Debug
-    // console.log('\n--- IGDB QUERY ---\n' + igdbQuery + '\n------------------\n');
+    // LOG pra debug: sempre deixe ligado até funcionar
+    console.log('\n--- IGDB QUERY ---\n' + igdbQuery + '\n------------------\n');
 
     const token = await getAccessToken();
     const igdbResponse = await axios.post(
