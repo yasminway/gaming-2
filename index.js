@@ -92,11 +92,11 @@ app.get('/games/ask', async (req, res) => {
     const { search, genreId, platformId, themeId, keywordIds, year, limit } = parseGameQuery(pergunta);
 
     const filters = [];
-    if (genreId) filters.push(`genres = (${genreId})`);
-    if (platformId) filters.push(`platforms = (${platformId})`);
-    if (themeId) filters.push(`themes = (${themeId})`);
-    if (keywordIds.length) filters.push(`keywords = (${keywordIds.join(",")})`);
-    if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
+if (genreId) filters.push(`genres = (${genreId})`);
+if (platformId) filters.push(`platforms = (${platformId})`);
+if (themeId) filters.push(`themes = (${themeId})`);
+if (keywordIds.length) filters.push(`keywords = (${keywordIds.join(",")})`);
+if (year) filters.push(`first_release_date >= ${year}-01-01 and first_release_date <= ${year}-12-31`);
 
     const query = [
       search ? `search "${search}";` : "",
