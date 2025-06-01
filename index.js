@@ -56,6 +56,7 @@ const keywords = {
   "steelbook": 3416, "bounty hunting": 3098, "corruption": 2131, "heroic sacrifice": 2207, "war veterans": 2239, "dark past": 1930, "greatest hits": 1969, "international version": 3388
 };
 
+// Funções auxiliares
 function extractGameTitle(question) {
   let m = question?.match(/["“”](.*?)["“”]/);
   if (m) return m[1];
@@ -140,20 +141,21 @@ app.get('/games/ask', async (req, res) => {
     const { search, genreId, platformId, themeId, keywordIds, year, limit } = parseGameQuery(pergunta);
 
     let filters = [];
-    if (genreId !== undefined && genreId !== null) filters.push(`genres = (${genreId})`);
-    if (themeId !== undefined && themeId !== null) filters.push(`themes = (${themeId})`);
-    if (platformId !== undefined && platformId !== null) filters.push(`platforms = (${platformId})`);
+    if (typeof genreId !== 'undefined') filters.push(`genres = (${genreId})`);
+    if (typeof themeId !== 'undefined') filters.push(`themes = (${themeId})`);
+    if (typeof platformId !== 'undefined') filters.push(`platforms = (${platformId})`);
     if (Array.isArray(keywordIds) && keywordIds.length > 0) filters.push(`keywords = (${keywordIds.join(",")})`);
     if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
 
+    // ** Montagem segura da query **
     const igdbQuery = [
-      (search && search.length > 0) ? `search "${search}";` : "",
+      (search && search.trim().length > 0) ? `search "${search}";` : "",
       "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;",
       (filters.length > 0) ? `where ${filters.join(' & ')};` : "",
       `limit ${limit};`
     ].filter(Boolean).join('\n');
 
-    // (Opcional) Debug:
+    // LOG para debug (pode comentar se não quiser)
     // console.log('\n--- IGDB QUERY ---\n' + igdbQuery + '\n------------------\n');
 
     const token = await getAccessToken();
@@ -170,7 +172,7 @@ app.get('/games/ask', async (req, res) => {
     );
     res.json({ fallback: false, results: igdbResponse.data });
   } catch (error) {
-    console.error(error.message);
+    console.error(error?.response?.data || error.message);
     res.json({ fallback: true, results: [], message: 'Erro na conexão com a IGDB.' });
   }
 });
@@ -188,20 +190,20 @@ app.get('/games', async (req, res) => {
     const limit = req.query.limit || 30;
 
     let filters = [];
-    if (genreId !== undefined && genreId !== null) filters.push(`genres = (${genreId})`);
-    if (themeId !== undefined && themeId !== null) filters.push(`themes = (${themeId})`);
-    if (platformId !== undefined && platformId !== null) filters.push(`platforms = (${platformId})`);
+    if (typeof genreId !== 'undefined') filters.push(`genres = (${genreId})`);
+    if (typeof themeId !== 'undefined') filters.push(`themes = (${themeId})`);
+    if (typeof platformId !== 'undefined') filters.push(`platforms = (${platformId})`);
     if (Array.isArray(keywordIds) && keywordIds.length > 0) filters.push(`keywords = (${keywordIds.join(",")})`);
     if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
 
     const igdbQuery = [
-      (query && query.length > 0) ? `search "${query}";` : "",
+      (query && query.trim().length > 0) ? `search "${query}";` : "",
       "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;",
       (filters.length > 0) ? `where ${filters.join(' & ')};` : "",
       `limit ${limit};`
     ].filter(Boolean).join('\n');
 
-    // (Opcional) Debug:
+    // LOG para debug (pode comentar se não quiser)
     // console.log('\n--- IGDB QUERY ---\n' + igdbQuery + '\n------------------\n');
 
     const igdbResponse = await axios.post(
@@ -217,7 +219,7 @@ app.get('/games', async (req, res) => {
     );
     res.json({ fallback: false, results: igdbResponse.data });
   } catch (error) {
-    console.error(error.message);
+    console.error(error?.response?.data || error.message);
     res.json({ fallback: true, results: [], message: 'Erro na conexão com a IGDB.' });
   }
 });
