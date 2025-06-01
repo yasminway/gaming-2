@@ -41,7 +41,7 @@ app.get('/games', async (req, res) => {
     const response = await axios.post('https://api.igdb.com/v4/games', query, {
       headers: {
         'Client-ID': clientId,
-        ''Authorization': `Bearer ${accessToken}`,
+        'Authorization': 'Bearer ' + accessToken,
         'Accept': 'application/json'
       }
     });
