@@ -30,12 +30,11 @@ app.get('/games', async (req, res) => {
   try {
     const query = `
       search "${search}";
-      fields *, cover.url, genres.name, platforms.name, involved_companies.company.name,
-        screenshots.url, artworks.url, videos.video_id, game_engines.name,
+      fields *, cover.url, genres.name, platforms.name,
         game_modes.name, player_perspectives.name, themes.name, keywords.name,
-        dlcs.name, expansions.name, remakes.name, remasters.name, bundles.name,
+        dlcs.name, expansions.name,
         franchise.name, similar_games.name;
-      limit 50;
+      limit 30;
     `;
 
     const response = await axios.post('https://api.igdb.com/v4/games', query, {
