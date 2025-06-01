@@ -86,21 +86,27 @@ function extractProtagonist(text) {
 
 function parseGameQuery(question) {
   let searchParts = [];
+  // Verifica se a busca é por nome/franquia (mantém seu detector)
   const title = extractGameTitle(question);
   if (title) searchParts.push(title);
   if (extractProtagonist(question)) searchParts.push("female protagonist");
   const genreIds = extractGenres(question);
   const platformIds = extractPlatforms(question);
   const themeIds = extractThemes(question);
-  const keywordIds = extractKeywords(question);
   const year = extractYear(question);
 
+  // AJUSTE: Sempre gerar um search válido
+  let search = searchParts.join(" ").trim();
+  if (!search) {
+    // Se não achou termo relevante, usa a pergunta toda
+    search = question.trim();
+  }
+
   return {
-    search: searchParts.length ? searchParts.join(" ") : "",
+    search,
     genreId: genreIds.length ? genreIds[0] : undefined,
     platformId: platformIds.length ? platformIds[0] : undefined,
     themeId: themeIds.length ? themeIds[0] : undefined,
-    keywordIds: keywordIds.length ? keywordIds : [],
     year: year,
     limit: 30
   };
