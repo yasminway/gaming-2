@@ -44,7 +44,7 @@ app.get('/games', async (req, res) => {
       search "${query}";
       fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name;
       ${filters.length > 0 ? `where ${filters.join(' & ')};` : ''}
-      limit 10;
+      limit 30;
     `;
 
     const igdbResponse = await axios.post(
