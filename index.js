@@ -19,7 +19,7 @@ const themes = {
   "low poly": 20, "experimental": 20, "survival": 19, "mystery": 43, "psicológico": 31, "psychological": 31, "indie": 32
 };
 
-// Cole o bloco de keywords aqui
+// Cole o SEU bloco de keywords aqui!
 const keywords = {
   "ghosts": 16, "exploration": 552, "bloody": 1273, "disease": 613, "detective": 1575, "murder": 278, "death": 558, "female protagonist": 962, "action-adventure": 269,
   "religion": 146, "parallel worlds": 435, "backtracking": 342, "multiple endings": 1313, "dialogue trees": 2726, "revenge": 1058, "camera": 1834, "survival horror": 1836,
@@ -226,6 +226,4 @@ app.get('/games', async (req, res) => {
 
 app.listen(port, () => {
   console.log(`Proxy rodando em http://localhost:${port}`);
-});
-Proxy rodando em http://localhost:${port}`);
 });
