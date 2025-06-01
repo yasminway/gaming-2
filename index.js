@@ -6,6 +6,7 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
+// GENRES, PLATFORMS, THEMES
 const genres = {
   "terror": 2, "horror": 2, "rpg": 12, "jrpg": 12, "aventura": 31, "adventure": 31,
   "ação": 5, "action": 5, "simulação": 13, "simulation": 13, "plataforma": 8, "platformer": 8
@@ -18,7 +19,7 @@ const themes = {
   "low poly": 20, "experimental": 20, "survival": 19, "mystery": 43, "psicológico": 31, "psychological": 31, "indie": 32
 };
 
-// Cole o bloco gigante de keywords aqui
+// Cole o bloco de keywords aqui
 const keywords = {
   "ghosts": 16, "exploration": 552, "bloody": 1273, "disease": 613, "detective": 1575, "murder": 278, "death": 558, "female protagonist": 962, "action-adventure": 269,
   "religion": 146, "parallel worlds": 435, "backtracking": 342, "multiple endings": 1313, "dialogue trees": 2726, "revenge": 1058, "camera": 1834, "survival horror": 1836,
@@ -138,19 +139,23 @@ app.get('/games/ask', async (req, res) => {
     const pergunta = req.query.question || "";
     const { search, genreId, platformId, themeId, keywordIds, year, limit } = parseGameQuery(pergunta);
     let filters = [];
-    if (genreId) filters.push(`genres = (${genreId})`);
-    if (themeId) filters.push(`themes = (${themeId})`);
-    if (platformId) filters.push(`platforms = (${platformId})`);
-    if (Array.isArray(keywordIds) && keywordIds.length) filters.push(`keywords = (${keywordIds.join(",")})`);
+    if (genreId !== undefined && genreId !== null) filters.push(`genres = (${genreId})`);
+    if (themeId !== undefined && themeId !== null) filters.push(`themes = (${themeId})`);
+    if (platformId !== undefined && platformId !== null) filters.push(`platforms = (${platformId})`);
+    if (Array.isArray(keywordIds) && keywordIds.length > 0) filters.push(`keywords = (${keywordIds.join(",")})`);
     if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
 
-    // >> Aqui está a principal proteção para erro 400 <<
-    const igdbQuery = `
-      ${search && search.length > 0 ? `search "${search}";` : ""}
-      fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;
-      ${filters.length > 0 ? `where ${filters.join(' & ')};` : ""}
-      limit ${limit};
-    `;
+    // Montagem segura da query
+    let igdbQuery = "";
+    if (search && search.length > 0) igdbQuery += `search "${search}";\n`;
+    igdbQuery += "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;\n";
+    if (filters.length > 0) {
+      igdbQuery += `where ${filters.join(' & ')};\n`;
+    }
+    igdbQuery += `limit ${limit};`;
+
+    // Debug opcional:
+    // console.log('IGDB QUERY:', igdbQuery);
 
     const token = await getAccessToken();
     const igdbResponse = await axios.post(
@@ -171,7 +176,7 @@ app.get('/games/ask', async (req, res) => {
   }
 });
 
-// Endpoint manual
+// Endpoint manual (igual, só muda query params)
 app.get('/games', async (req, res) => {
   try {
     const token = await getAccessToken();
@@ -184,19 +189,21 @@ app.get('/games', async (req, res) => {
     const limit = req.query.limit || 30;
 
     let filters = [];
-    if (genreId) filters.push(`genres = (${genreId})`);
-    if (themeId) filters.push(`themes = (${themeId})`);
-    if (platformId) filters.push(`platforms = (${platformId})`);
-    if (Array.isArray(keywordIds) && keywordIds.length) filters.push(`keywords = (${keywordIds.join(",")})`);
+    if (genreId !== undefined && genreId !== null) filters.push(`genres = (${genreId})`);
+    if (themeId !== undefined && themeId !== null) filters.push(`themes = (${themeId})`);
+    if (platformId !== undefined && platformId !== null) filters.push(`platforms = (${platformId})`);
+    if (Array.isArray(keywordIds) && keywordIds.length > 0) filters.push(`keywords = (${keywordIds.join(",")})`);
     if (year) filters.push(`first_release_date >= ${year}-01-01 & first_release_date <= ${year}-12-31`);
 
-    // Proteção para search/query vazio
-    const igdbQuery = `
-      ${query && query.length > 0 ? `search "${query}";` : ""}
-      fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;
-      ${filters.length > 0 ? `where ${filters.join(' & ')};` : ""}
-      limit ${limit};
-    `;
+    let igdbQuery = "";
+    if (query && query.length > 0) igdbQuery += `search "${query}";\n`;
+    igdbQuery += "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;\n";
+    if (filters.length > 0) {
+      igdbQuery += `where ${filters.join(' & ')};\n`;
+    }
+    igdbQuery += `limit ${limit};`;
+
+    // console.log('IGDB QUERY:', igdbQuery);
 
     const igdbResponse = await axios.post(
       'https://api.igdb.com/v4/games',
