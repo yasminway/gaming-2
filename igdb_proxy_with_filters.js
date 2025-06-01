@@ -14,28 +14,20 @@ const getAccessToken = async () => {
   return process.env.IGDB_TOKEN;
 };
 
-const buildQuery = (params) => {
-  let filters = [];
+const buildQuery = (pergunta) => {
+  const cleanSearch = pergunta
+    .toLowerCase()
+    .replace(/\b(quais|são|os|jogos|com|protagonista|feminina|masculino|estão|previstos|pra|em|de|para|que|vão|ser|lançar|lançados)\b/gi, "")
+    .trim();
 
-  if (params.year) {
-    const start = `${params.year}-01-01`;
-    const end = `${params.year}-12-31`;
-    filters.push(`first_release_date >= ${Math.floor(new Date(start).getTime() / 1000)}`);
-    filters.push(`first_release_date <= ${Math.floor(new Date(end).getTime() / 1000)}`);
-  }
-
-  if (params.genreId) filters.push(`genres = (${params.genreId})`);
-  if (params.platform) filters.push(`platforms = (${params.platform})`);
-
-  let searchLine = params.search ? `search "${params.search}";` : "";
-
-  return `
-    ${searchLine}
+  const query = `
+    search "${cleanSearch}";
     fields name, summary, genres.name, platforms.name, rating, cover.url, first_release_date;
-    ${filters.length > 0 ? `where ${filters.join(" & ")};` : ""}
     sort first_release_date desc;
-    limit ${params.limit || 10};
+    limit 20;
   `;
+
+  return query;
 };
 
 app.post("/games", async (req, res) => {
@@ -44,25 +36,10 @@ app.post("/games", async (req, res) => {
     const token = await getAccessToken();
     const clientId = process.env.CLIENT_ID;
 
-    const queryParams = { limit: 50 };
-    const lower = pergunta.toLowerCase();
+    const query = buildQuery(pergunta);
 
-    // Gêneros mais comuns
-    if (lower.includes("terror")) queryParams.genreId = 2;
-    if (lower.includes("jrpg")) queryParams.genreId = 18;
-    if (lower.includes("ação")) queryParams.genreId = 4;
-    if (lower.includes("tático")) queryParams.genreId = 24;
-
-    // Ano (ex: 2025)
-    const yearMatch = lower.match(/\b(202[4-6])\b/);
-    if (yearMatch) queryParams.year = yearMatch[1];
-
-    // Limpa palavras comuns pra focar na essência da busca
-    queryParams.search = pergunta
-      .replace(/\b(quais|são|os|jogos|com|protagonista|feminina|estão|previstos|pra|em|de|para|que|vão|ser|lançar|lançados)\b/gi, "")
-      .trim();
-
-    const query = buildQuery(queryParams);
+    console.log("🟡 IGDB Query enviada:");
+    console.log(query);
 
     const response = await axios.post(IGDB_URL, query, {
       headers: {
@@ -72,26 +49,27 @@ app.post("/games", async (req, res) => {
       },
     });
 
-    const jogos = response.data;
+    console.log("🟢 Resposta IGDB:");
+    console.dir(response.data, { depth: null });
 
     return res.json({
-      fallback: !jogos || jogos.length === 0,
-      results: jogos || [],
-      message: (!jogos || jogos.length === 0)
-        ? "Nenhum jogo encontrado com esses filtros"
+      fallback: !response.data || response.data.length === 0,
+      results: response.data || [],
+      message: (!response.data || response.data.length === 0)
+        ? "Nenhum jogo encontrado com esse search."
         : undefined,
     });
 
   } catch (err) {
-    console.error("Erro na API IGDB:", err.message);
+    console.error("🔴 Erro ao consultar a IGDB:", err.message);
     return res.json({
       fallback: true,
       results: [],
-      message: "Erro na API IGDB — resposta vazia ou inválida 💔",
+      message: "Erro na conexão com a IGDB.",
     });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`🚀 Servidor IGDB rodando na porta ${PORT}`);
 });
