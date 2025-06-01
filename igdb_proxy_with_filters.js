@@ -1,4 +1,3 @@
-
 const express = require("express");
 const axios = require("axios");
 const app = express();
@@ -34,7 +33,7 @@ const buildQuery = (params) => {
   return `
     ${searchLine}
     fields name,summary,genres.name,platforms.name,rating,cover.url,first_release_date;
-    where ${filters.join(" & ")};
+    ${filters.length > 0 ? `where ${filters.join(" & ")};` : ""}
     limit ${params.limit || 10};
     sort first_release_date desc;
   `;
@@ -61,13 +60,12 @@ app.post("/games", async (req, res) => {
     if (lowerQuestion.includes("low poly") || lowerQuestion.includes("retrô")) queryParams.themeId = 20;
     if (lowerQuestion.includes("melancólico") || lowerQuestion.includes("melancolia")) queryParams.themeId = 41;
 
-    if (lowerQuestion.match(/\b(202[4-6])\b/)) {
-      queryParams.year = lowerQuestion.match(/\b(202[4-6])\b/)[1];
-    }
+    const anoMatch = lowerQuestion.match(/\b(202[4-6])\b/);
+    if (anoMatch) queryParams.year = anoMatch[1];
 
-    const data = buildQuery(queryParams);
+    const query = buildQuery(queryParams);
 
-    const response = await axios.post(IGDB_URL, data, {
+    const response = await axios.post(IGDB_URL, query, {
       headers: {
         "Client-ID": clientId,
         Authorization: `Bearer ${token}`,
@@ -75,17 +73,27 @@ app.post("/games", async (req, res) => {
       },
     });
 
-    if (response.data.length === 0) {
-      return res.status(200).json({
+    const jogos = response.data;
+
+    if (!jogos || jogos.length === 0) {
+      return res.json({
         fallback: true,
-        message: "Nenhum jogo encontrado com esses filtros — você quer que eu suavize os critérios ou procure na web?",
+        results: [],
+        message: "Nenhum jogo encontrado com esses filtros — quer que eu tente com critérios mais amplos ou busque na web?",
       });
     }
 
-    res.status(200).json(response.data);
+    return res.json({
+      fallback: false,
+      results: jogos,
+    });
+
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ erro: "Erro IGDB", detalhe: err.message });
+    console.error("Erro ao consultar IGDB:", err);
+    return res.status(500).json({
+      erro: "Erro IGDB",
+      detalhe: err.message || "Erro desconhecido",
+    });
   }
 });
 
