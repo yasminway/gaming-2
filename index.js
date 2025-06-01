@@ -225,7 +225,7 @@ app.get('/games', async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`🎮 IGDB Proxy rodando em http://localhost:${port}`);
+  console.log(`Proxy rodando em http://localhost:${port}`);
 });
 Proxy rodando em http://localhost:${port}`);
 });
