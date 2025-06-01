@@ -1,4 +1,5 @@
 // index.js
+
 import express from 'express';
 import axios from 'axios';
 import dotenv from 'dotenv';
@@ -7,6 +8,7 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
+// --- Filtros customizáveis ---
 const genres = {
   "horror": 2, "terror": 2, "rpg": 12, "jrpg": 12, "adventure": 31, "aventura": 31,
   "action": 5, "ação": 5, "simulation": 13, "simulação": 13, "platformer": 8, "plataforma": 8
@@ -19,53 +21,54 @@ const platforms = {
 const themes = {
   "survival": 19, "mystery": 43, "psychological": 31, "psicológico": 31, "indie": 32
 };
+// Pode colar keywords expandidas aqui!
 const keywords = {
   "female protagonist": 962, "survival horror": 1836, "camera": 1834, "ghosts": 16,
-  "death": 558, "multiple endings": 1313
+  "death": 558, "multiple endings": 1313, "exploration": 552, "bloody": 1273, "disease": 613,
+  "detective": 1575, "revenge": 1058, "cult": 637, "darkness": 223, "boss fight": 3846,
+  "single-player only": 2047, "scary children": 3192, "hallucination": 1383, "plot twist": 3300,
+  "evil organization": 302, "hospital": 1031, "gore": 101, "isolation": 5409, "mad scientist": 348
+  // ...pode adicionar mais!
 };
 
-// Função de extract (procura se cada termo individual está presente em cada dicionário)
+// --- Funções auxiliares ---
 function extract(text, dict) {
   if (!text) return [];
-  return Object.keys(dict).filter(k => text.toLowerCase().includes(k)).map(k => dict[k]);
+  const norm = text.toLowerCase();
+  return Object.keys(dict).filter(k => norm.includes(k)).map(k => dict[k]);
 }
 function extractYear(text) {
   const m = text?.match(/20\d{2}/);
   return m ? parseInt(m[0]) : undefined;
 }
 function extractTitle(text) {
-  const m = text?.match(/["“”](.*?)["“”]/);
+  const m = text?.match(/["“”](.*?)["“”]/) || text?.match(/s[ée]rie ([\w\s:]+)/i);
   return m ? m[1].trim() : null;
 }
 function toUnixTimestamp(dateStr) {
   return Math.floor(new Date(dateStr).getTime() / 1000);
 }
 
-// >>>>>>> NOVA FUNÇÃO DE PARSE, AGORA COM SPLIT <<<<<<<<
 function parseGameQuery(question) {
-  // Divide em partes por vírgula, ponto e vírgula ou “ e ” (com espaços)
-  let parts = question.split(/,| e |;/).map(s => s.trim().toLowerCase());
-  let genreIds = [], platformIds = [], themeIds = [], keywordIds = [];
-  let year, title;
+  const genreIds = extract(question, genres);
+  const platformIds = extract(question, platforms);
+  const themeIds = extract(question, themes);
+  const keywordIds = extract(question, keywords);
+  const year = extractYear(question);
+  const title = extractTitle(question);
 
-  for (const part of parts) {
-    genreIds.push(...extract(part, genres));
-    platformIds.push(...extract(part, platforms));
-    themeIds.push(...extract(part, themes));
-    keywordIds.push(...extract(part, keywords));
-    if (!year) year = extractYear(part);
-    if (!title) title = extractTitle(part);
-  }
-  // Remove duplicados
-  genreIds = [...new Set(genreIds)];
-  platformIds = [...new Set(platformIds)];
-  themeIds = [...new Set(themeIds)];
-  keywordIds = [...new Set(keywordIds)];
-
-  return { title, genreIds, platformIds, themeIds, keywordIds, year, limit: 30 };
+  return {
+    title,
+    genreIds,
+    platformIds,
+    themeIds,
+    keywordIds,
+    year,
+    limit: 30
+  };
 }
 
-// Autenticação IGDB
+// --- IGDB Auth ---
 let accessToken = '';
 let tokenExpiration = 0;
 async function getAccessToken() {
@@ -82,19 +85,20 @@ async function getAccessToken() {
   return accessToken;
 }
 
-// Filtros inteligentes
+// --- Helper de WHERE (regra IGDB: sempre "&"!) ---
 function buildFilter(field, values) {
-  if (!values.length) return null;
+  if (!values?.length) return null;
   if (values.length === 1) return `${field} = ${values[0]}`;
-  return `${field} = any (${values.join(',')})`;
+  return `${field} = (${values.join(',')})`;
 }
 
-// Endpoint principal
+// --- Endpoint principal ---
 app.get('/games/ask', async (req, res) => {
   try {
     const pergunta = req.query.question || "";
     const { title, genreIds, platformIds, themeIds, keywordIds, year, limit } = parseGameQuery(pergunta);
 
+    // Montagem dos filtros para o WHERE
     const filters = [];
     const genreFilter = buildFilter('genres', genreIds);
     const platformFilter = buildFilter('platforms', platformIds);
@@ -109,21 +113,23 @@ app.get('/games/ask', async (req, res) => {
     if (year) {
       const start = toUnixTimestamp(`${year}-01-01`);
       const end = toUnixTimestamp(`${year}-12-31`);
-      filters.push(`first_release_date >= ${start} and first_release_date <= ${end}`);
+      filters.push(`first_release_date >= ${start}`);
+      filters.push(`first_release_date <= ${end}`);
     }
 
+    // Monta a query IGDB
     const igdbQueryArr = [];
-    // Só faz search se TÍTULO explícito!
+    // Só faz search se for relevante (nome/título)
     if (title) igdbQueryArr.push(`search "${title}";`);
     igdbQueryArr.push("fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;");
-    if (filters.length) igdbQueryArr.push(`where ${filters.join(" and ")};`);
+    if (filters.length) igdbQueryArr.push(`where ${filters.join(" & ")};`);
     igdbQueryArr.push("sort first_release_date desc;");
     igdbQueryArr.push(`limit ${limit};`);
-
     const query = igdbQueryArr.join('\n');
 
     console.log("\n--- IGDB QUERY ---\n" + query + "\n------------------");
 
+    // IGDB Request
     const token = await getAccessToken();
     const { data } = await axios.post('https://api.igdb.com/v4/games', query, {
       headers: {
@@ -134,13 +140,13 @@ app.get('/games/ask', async (req, res) => {
     });
 
     res.json({ fallback: false, results: data });
-
   } catch (error) {
     console.error("[IGDB ERROR]", error?.response?.data || error.message);
     res.status(500).json({ fallback: true, results: [], message: 'Erro na conexão com a IGDB.' });
   }
 });
 
+// --- Server start ---
 app.listen(port, () => {
-  console.log('Proxy rodando em http://localhost:' + port);
+  console.log('🎮 Proxy rodando em http://localhost:' + port);
 });
