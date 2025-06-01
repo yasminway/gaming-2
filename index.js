@@ -197,23 +197,25 @@ app.get('/games', async (req, res) => {
     if (query && query.length > 0) igdbQuery += `search "${query}";\n`;
     igdbQuery += "fields name, summary, genres.name, platforms.name, cover.url, first_release_date, rating, themes.name, keywords.name;\n";
     if (filters.length > 0) {
-      igdbQuery += `where ${filters.join(' & ')};\n`;
+  igdbQuery += `where ${filters.join(' & ')};\n`;
+}
+igdbQuery += `limit ${limit};`;
+
+// Adicione aqui:
+console.log('\n--- IGDB QUERY ---\n' + igdbQuery + '\n------------------\n');
+
+// Agora sim, a chamada axios:
+const igdbResponse = await axios.post(
+  'https://api.igdb.com/v4/games',
+  igdbQuery,
+  {
+    headers: {
+      'Client-ID': process.env.CLIENT_ID,
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'text/plain'
     }
-    igdbQuery += `limit ${limit};`;
-
-    // console.log('IGDB QUERY:', igdbQuery);
-
-    const igdbResponse = await axios.post(
-      'https://api.igdb.com/v4/games',
-      igdbQuery,
-      {
-        headers: {
-          'Client-ID': process.env.CLIENT_ID,
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'text/plain'
-        }
-      }
-    );
+  }
+);
     res.json({ fallback: false, results: igdbResponse.data });
   } catch (error) {
     console.error(error.message);
