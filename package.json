@@ -1,14 +1,18 @@
 {
-  "name": "igdb-proxy",
+  "name": "gamer-igdb-proxy",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "Proxy personalizado para buscas avançadas de jogos na IGDB",
   "type": "module",
+  "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
+  "keywords": ["igdb", "proxy", "games", "rpg", "terror", "jrpg"],
+  "author": "Yas",
+  "license": "MIT",
   "dependencies": {
     "axios": "^1.6.7",
-    "express": "^4.18.2",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
   }
 }
